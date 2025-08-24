@@ -1,6 +1,6 @@
-# Makima Setup Guide for Arch Linux
+# Makita Setup Guide for Arch Linux
 
-This guide provides step-by-step instructions to install and configure Makima on Arch Linux.
+This guide provides step-by-step instructions to install and configure Makita on Arch Linux.
 
 ## Quick Setup (Automated)
 
@@ -13,8 +13,8 @@ sudo ./setup-arch.sh
 This script will:
 - Install all required dependencies (Rust, Cargo, Clang, Ruby, etc.)
 - Set up the Rust toolchain
-- Build Makima from source
-- Install the binary to `/usr/local/bin/makima`
+- Build Makita from source
+- Install the binary to `/usr/local/bin/makita`
 - Configure udev rules and systemd service
 - Create example configurations
 - Add your user to the `input` group
@@ -29,20 +29,20 @@ This script will:
 ./configure-device.sh --device
 ```
 
-### 3. Start Makima
+### 3. Start Makita
 
 ```bash
 # Start the service
-sudo systemctl start makima
+sudo systemctl start makita
 
 # Enable auto-start (optional)
-sudo systemctl enable makima
+sudo systemctl enable makita
 
 # Check status
-sudo systemctl status makima
+sudo systemctl status makita
 
 # View logs
-journalctl -u makima -f
+journalctl -u makita -f
 ```
 
 ---
@@ -73,11 +73,11 @@ rustup default stable
 rustup update
 ```
 
-### Step 3: Build Makima
+### Step 3: Build Makita
 
 ```bash
-# Clone or navigate to makima directory
-cd /path/to/makima
+# Clone or navigate to makita directory
+cd /path/to/makita
 
 # Build release version
 cargo build --release
@@ -87,33 +87,33 @@ cargo build --release
 
 ```bash
 # Copy binary (requires sudo)
-sudo cp target/release/makima /usr/local/bin/
-sudo chmod +x /usr/local/bin/makima
+sudo cp target/release/makita /usr/local/bin/
+sudo chmod +x /usr/local/bin/makita
 
 # Copy udev rules
-sudo cp 50-makima.rules /etc/udev/rules.d/
+sudo cp 50-makita.rules /etc/udev/rules.d/
 
 # Enable uinput module
 echo "uinput" | sudo tee /etc/modules-load.d/uinput.conf
 sudo modprobe uinput
 
 # Create config directory
-mkdir -p ~/.config/makima
+mkdir -p ~/.config/makita
 ```
 
 ### Step 5: Configure Systemd Service
 
 ```bash
 # Create service file
-sudo tee /etc/systemd/system/makima.service << EOF
+sudo tee /etc/systemd/system/makita.service << EOF
 [Unit]
-Description=Makima remapping daemon
+Description=Makita remapping daemon
 After=graphical-session.target
 
 [Service]
 Type=simple
-Environment="MAKIMA_CONFIG=$HOME/.config/makima"
-ExecStart=/usr/local/bin/makima
+Environment="MAKITA_CONFIG=$HOME/.config/makita"
+ExecStart=/usr/local/bin/makita
 Restart=always
 RestartSec=3
 User=$USER
@@ -148,15 +148,15 @@ sudo evtest
 
 ### Creating Configuration Files
 
-Configuration files should be named after your device and placed in `~/.config/makima/`:
+Configuration files should be named after your device and placed in `~/.config/makita/`:
 
 **Example**: If your device is named "AT Translated Set 2 keyboard", create:
-`~/.config/makima/AT Translated Set 2 keyboard.toml`
+`~/.config/makita/AT Translated Set 2 keyboard.toml`
 
 ### Basic Configuration Example
 
 ```toml
-# ~/.config/makima/AT Translated Set 2 keyboard.toml
+# ~/.config/makita/AT Translated Set 2 keyboard.toml
 
 [bindings.remap]
 # Remap Caps Lock to Escape
@@ -181,17 +181,17 @@ For advanced input processing, you can use Ruby scripts:
 
 1. **Set environment variable**:
    ```bash
-   export MAKIMA_RUBY_SCRIPT="$HOME/.config/makima/scripts/my_script.rb"
+   export MAKITA_RUBY_SCRIPT="$HOME/.config/makita/scripts/my_script.rb"
    ```
 
 2. **Create Ruby script**:
    ```ruby
-   # ~/.config/makima/scripts/my_script.rb
+   # ~/.config/makita/scripts/my_script.rb
    
    def handle(event)
      # Convert Caps Lock to Escape
      if event.key == 58 && event.key_down?  # KEY_CAPSLOCK
-       Makima.press(1)  # KEY_ESC
+       Makita.press(1)  # KEY_ESC
        return nil  # Consume the event
      end
      
@@ -201,12 +201,12 @@ For advanced input processing, you can use Ruby scripts:
 
 3. **Update systemd service** to include the environment variable:
    ```bash
-   sudo systemctl edit makima
+   sudo systemctl edit makita
    ```
    Add:
    ```ini
    [Service]
-   Environment="MAKIMA_RUBY_SCRIPT=/home/yourusername/.config/makima/scripts/my_script.rb"
+   Environment="MAKITA_RUBY_SCRIPT=/home/yourusername/.config/makita/scripts/my_script.rb"
    ```
 
 ---
@@ -217,18 +217,18 @@ For advanced input processing, you can use Ruby scripts:
 
 ```bash
 # Start/stop service
-sudo systemctl start makima
-sudo systemctl stop makima
-sudo systemctl restart makima
+sudo systemctl start makita
+sudo systemctl stop makita
+sudo systemctl restart makita
 
 # Enable/disable auto-start
-sudo systemctl enable makima
-sudo systemctl disable makima
+sudo systemctl enable makita
+sudo systemctl disable makita
 
 # Check status and logs
-sudo systemctl status makima
-journalctl -u makima -f
-journalctl -u makima --since "1 hour ago"
+sudo systemctl status makita
+journalctl -u makita -f
+journalctl -u makita --since "1 hour ago"
 ```
 
 ### Configuration Management
@@ -241,23 +241,23 @@ journalctl -u makima --since "1 hour ago"
 ./configure-device.sh --device
 
 # Test configuration (dry run)
-sudo /usr/local/bin/makima  # Run in foreground to see output
+sudo /usr/local/bin/makita  # Run in foreground to see output
 
 # Edit config files
-nano ~/.config/makima/your-device.toml
+nano ~/.config/makita/your-device.toml
 ```
 
 ### Ruby Scripting
 
 ```bash
 # Set Ruby script environment variable
-export MAKIMA_RUBY_SCRIPT="/path/to/script.rb"
+export MAKITA_RUBY_SCRIPT="/path/to/script.rb"
 
 # Test Ruby script
-MAKIMA_RUBY_SCRIPT="/path/to/script.rb" sudo systemctl restart makima
+MAKITA_RUBY_SCRIPT="/path/to/script.rb" sudo systemctl restart makita
 
 # Available Ruby examples
-ls ~/.config/makima/examples/ruby_scripts/
+ls ~/.config/makita/examples/ruby_scripts/
 ```
 
 ---
@@ -276,10 +276,10 @@ ls ~/.config/makima/examples/ruby_scripts/
 2. **Service won't start**:
    ```bash
    # Check logs
-   journalctl -u makima -n 50
+   journalctl -u makita -n 50
    
    # Test binary directly
-   sudo /usr/local/bin/makima
+   sudo /usr/local/bin/makita
    ```
 
 3. **Device not detected**:
@@ -306,30 +306,30 @@ ls ~/.config/makima/examples/ruby_scripts/
 
 ### Getting Help
 
-- Check service status: `sudo systemctl status makima`
-- View detailed logs: `journalctl -u makima -f`
-- Test configuration: Run makima in foreground to see debug output
+- Check service status: `sudo systemctl status makita`
+- View detailed logs: `journalctl -u makita -f`
+- Test configuration: Run makita in foreground to see debug output
 - Verify device names: Use `sudo evtest` to confirm device names match config files
 
 ---
 
 ## Uninstallation
 
-To completely remove Makima:
+To completely remove Makita:
 
 ```bash
 # Stop and disable service
-sudo systemctl stop makima
-sudo systemctl disable makima
+sudo systemctl stop makita
+sudo systemctl disable makita
 
 # Remove files
-sudo rm /usr/local/bin/makima
-sudo rm /etc/systemd/system/makima.service
-sudo rm /etc/udev/rules.d/50-makima.rules
+sudo rm /usr/local/bin/makita
+sudo rm /etc/systemd/system/makita.service
+sudo rm /etc/udev/rules.d/50-makita.rules
 sudo rm /etc/modules-load.d/uinput.conf
 
 # Remove configurations (optional)
-rm -rf ~/.config/makima
+rm -rf ~/.config/makita
 
 # Remove user from input group (optional)
 sudo gpasswd -d $USER input

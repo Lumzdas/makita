@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Makima Setup Script for Arch Linux
-# Run this script to install all dependencies and set up Makima on your system
+# Makita Setup Script for Arch Linux
+# Run this script to install all dependencies and set up Makita on your system
 
 set -e
 
@@ -79,8 +79,8 @@ EOF
     print_success "Rust toolchain configured"
 }
 
-build_makima() {
-    print_status "Building Makima from source..."
+build_makita() {
+    print_status "Building Makita from source..."
 
     # Build as user
     sudo -u "$USER_NAME" bash << EOF
@@ -90,31 +90,31 @@ build_makima() {
         cargo build --release
 EOF
 
-    if [ ! -f "$SCRIPT_DIR/target/release/makima" ]; then
-        print_error "Build failed - makima binary not found"
+    if [ ! -f "$SCRIPT_DIR/target/release/makita" ]; then
+        print_error "Build failed - makita binary not found"
         exit 1
     fi
 
-    print_success "Makima built successfully"
+    print_success "Makita built successfully"
 }
 
 install_binary_and_configs() {
     print_status "Installing binary and configuration files..."
 
     # Copy binary
-    cp "$SCRIPT_DIR/target/release/makima" /usr/local/bin/
-    chmod +x /usr/local/bin/makima
+    cp "$SCRIPT_DIR/target/release/makita" /usr/local/bin/
+    chmod +x /usr/local/bin/makita
 
     # Copy udev rules
-    cp "$SCRIPT_DIR/50-makima.rules" /etc/udev/rules.d/
+    cp "$SCRIPT_DIR/50-makita.rules" /etc/udev/rules.d/
 
     # Enable uinput module
     echo "uinput" > /etc/modules-load.d/uinput.conf
     modprobe uinput
 
     # Create user config directory
-    mkdir -p "$USER_HOME/.config/makima"
-    chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/makima"
+    mkdir -p "$USER_HOME/.config/makita"
+    chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/makita"
 
     print_success "Binary and configuration files installed"
 }
@@ -123,15 +123,15 @@ setup_systemd_service() {
     print_status "Setting up systemd service..."
 
     # Create systemd service file
-    cat > /etc/systemd/system/makima.service << EOF
+    cat > /etc/systemd/system/makita.service << EOF
 [Unit]
-Description=Makima remapping daemon
+Description=Makita remapping daemon
 After=graphical-session.target
 
 [Service]
 Type=simple
-Environment="MAKIMA_CONFIG=$USER_HOME/.config/makima"
-ExecStart=/usr/local/bin/makima
+Environment="MAKITA_CONFIG=$USER_HOME/.config/makita"
+ExecStart=/usr/local/bin/makita
 Restart=always
 RestartSec=3
 User=$USER_NAME
@@ -156,15 +156,15 @@ setup_example_configs() {
     print_status "Setting up example configurations..."
 
     # Create examples directory
-    mkdir -p "$USER_HOME/.config/makima/examples"
+    mkdir -p "$USER_HOME/.config/makita/examples"
 
     # Copy Ruby script examples if they exist
     if [ -d "$SCRIPT_DIR/examples/ruby_scripts" ]; then
-        cp -r "$SCRIPT_DIR/examples/ruby_scripts" "$USER_HOME/.config/makima/examples/"
+        cp -r "$SCRIPT_DIR/examples/ruby_scripts" "$USER_HOME/.config/makita/examples/"
     fi
 
     # Create a basic keyboard config example
-    cat > "$USER_HOME/.config/makima/examples/example-keyboard.toml" << 'EOF'
+    cat > "$USER_HOME/.config/makita/examples/example-keyboard.toml" << 'EOF'
 # Example keyboard configuration
 # Rename this file to match your device name (e.g., "AT Translated Set 2 keyboard.toml")
 # Find your device name by running: sudo evtest
@@ -183,58 +183,58 @@ NOTIFY_LAYOUT_SWITCH = true
 EOF
 
     # Create a Ruby script example config
-    cat > "$USER_HOME/.config/makima/examples/ruby-example.toml" << 'EOF'
+    cat > "$USER_HOME/.config/makita/examples/ruby-example.toml" << 'EOF'
 # Example configuration using Ruby scripts
-# Set MAKIMA_RUBY_SCRIPT environment variable to use Ruby scripting
+# Set MAKITA_RUBY_SCRIPT environment variable to use Ruby scripting
 
 [settings]
-# Ruby script path (alternative to MAKIMA_RUBY_SCRIPT env var)
-# RUBY_SCRIPT = "/home/user/.config/makima/examples/ruby_scripts/eat_input.rb"
+# Ruby script path (alternative to MAKITA_RUBY_SCRIPT env var)
+# RUBY_SCRIPT = "/home/user/.config/makita/examples/ruby_scripts/eat_input.rb"
 EOF
 
-    chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/makima"
+    chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.config/makita"
 
     print_success "Example configurations created"
 }
 
 print_instructions() {
-    print_success "Makima setup completed!"
+    print_success "Makita setup completed!"
     echo
     print_status "Next steps:"
     echo "1. Find your input device names:"
     echo "   sudo evtest"
     echo
-    echo "2. Create config files in ~/.config/makima/ named after your devices:"
+    echo "2. Create config files in ~/.config/makita/ named after your devices:"
     echo "   Example: 'AT Translated Set 2 keyboard.toml'"
     echo
-    echo "3. Check example configs in ~/.config/makima/examples/"
+    echo "3. Check example configs in ~/.config/makita/examples/"
     echo
     echo "4. Start the service:"
-    echo "   sudo systemctl start makima"
+    echo "   sudo systemctl start makita"
     echo
     echo "5. Enable auto-start (optional):"
-    echo "   sudo systemctl enable makima"
+    echo "   sudo systemctl enable makita"
     echo
     echo "6. Check service status:"
-    echo "   sudo systemctl status makima"
+    echo "   sudo systemctl status makita"
     echo
     echo "7. View logs:"
-    echo "   journalctl -u makima -f"
+    echo "   journalctl -u makita -f"
     echo
     print_status "For Ruby scripting, set environment variable:"
-    echo "   export MAKIMA_RUBY_SCRIPT=/path/to/your/script.rb"
+    echo "   export MAKITA_RUBY_SCRIPT=/path/to/your/script.rb"
     echo
     print_warning "Note: You may need to log out and back in for group changes to take effect."
 }
 
 main() {
-    echo "=== Makima Setup for Arch Linux ==="
+    echo "=== Makita Setup for Arch Linux ==="
     echo
 
     check_root
     install_dependencies
     setup_rust
-    build_makima
+    build_makita
     install_binary_and_configs
     setup_systemd_service
     setup_example_configs

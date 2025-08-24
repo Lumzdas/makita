@@ -307,13 +307,13 @@ impl EventReader {
         // Initialize Ruby service
         let ruby_service = {
             let service = RubyService::new();
-            if let Ok(path) = std::env::var("MAKIMA_RUBY_SCRIPT") {
+            if let Ok(path) = std::env::var("MAKITA_RUBY_SCRIPT") {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     println!("Loading Ruby script from: {}", path);
                     service.set_script(content);
                     Some(service)
                 } else {
-                    println!("Warning: failed to read MAKIMA_RUBY_SCRIPT {}.", path);
+                    println!("Warning: failed to read MAKITA_RUBY_SCRIPT {}.", path);
                     Some(service)
                 }
             } else {
@@ -1385,7 +1385,7 @@ impl EventReader {
         }
         if self.settings.notify_layout_switch {
             let notify = vec![String::from(format!(
-                "notify-send -t 500 'Makima' 'Switching to layout {}'",
+                "notify-send -t 500 'Makita' 'Switching to layout {}'",
                 *active_layout
             ))];
             self.spawn_subprocess(&notify).await;

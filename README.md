@@ -1,7 +1,9 @@
-# makima
+# makita
 
-Makima is a daemon for Linux to remap keyboards, mice, controllers and tablets.\
+Makita is a daemon for Linux to remap keyboards, mice, controllers and tablets.\
 It works on both Wayland and X11 as it relies on the `evdev` kernel interface.
+
+Forked from the amazing [makima](https://github.com/cyber-sushi/makima).
 
 ## Features
 - Translates keys, buttons or combinations to other keys, sequences or shell commands.
@@ -11,77 +13,77 @@ It works on both Wayland and X11 as it relies on the `evdev` kernel interface.
 - Also supports some common `ABS` and `REL` events, like analog stick movements and mouse scroll wheels.
 - Supports hot plugging to connect and disconnect devices on the fly.
 - Works with wired and Bluetooth devices.
-- If you connect a [supported game controller](https://github.com/cyber-sushi/makima/tree/main#tested-controllers), you can scroll or move your cursor using analog sticks, with adjustable sensitivity and deadzone.
+- If you connect a [supported game controller](https://github.com/cyber-sushi/makita/tree/main#tested-controllers), you can scroll or move your cursor using analog sticks, with adjustable sensitivity and deadzone.
 
 # Index
-- [Installation](https://github.com/cyber-sushi/makima/tree/main#installation)
-    - [Building from source](https://github.com/cyber-sushi/makima/tree/main#building-from-source)
-- [Running makima](https://github.com/cyber-sushi/makima/tree/main#running-makima)
-- [Configuration](https://github.com/cyber-sushi/makima/tree/main#configuration)
-    - [Example config files](https://github.com/cyber-sushi/makima/tree/main/examples)
-    - [Config file naming](https://github.com/cyber-sushi/makima/tree/main#config-file-naming)
-    - [Application-specific bindings](https://github.com/cyber-sushi/makima/tree/main#application-specific-bindings)
-    - [Layout hotswapping](https://github.com/cyber-sushi/makima/tree/main#layout-hotswapping)
-    - [Change bindings](https://github.com/cyber-sushi/makima/tree/main#bindings-and-settings)
-        - [Remap](https://github.com/cyber-sushi/makima/tree/main#remap)
-        - [Commands](https://github.com/cyber-sushi/makima/tree/main#commands)
-        - [Movements](https://github.com/cyber-sushi/makima/tree/main#movements)
-        - [Settings](https://github.com/cyber-sushi/makima/tree/main#settings)
-- [Tested controllers](https://github.com/cyber-sushi/makima/tree/main#tested-controllers)
-- [Troubleshooting and FAQ](https://github.com/cyber-sushi/makima/tree/main#troubleshooting-and-faq)
+- [Installation](https://github.com/cyber-sushi/makita/tree/main#installation)
+    - [Building from source](https://github.com/cyber-sushi/makita/tree/main#building-from-source)
+- [Running makita](https://github.com/cyber-sushi/makita/tree/main#running-makita)
+- [Configuration](https://github.com/cyber-sushi/makita/tree/main#configuration)
+    - [Example config files](https://github.com/cyber-sushi/makita/tree/main/examples)
+    - [Config file naming](https://github.com/cyber-sushi/makita/tree/main#config-file-naming)
+    - [Application-specific bindings](https://github.com/cyber-sushi/makita/tree/main#application-specific-bindings)
+    - [Layout hotswapping](https://github.com/cyber-sushi/makita/tree/main#layout-hotswapping)
+    - [Change bindings](https://github.com/cyber-sushi/makita/tree/main#bindings-and-settings)
+        - [Remap](https://github.com/cyber-sushi/makita/tree/main#remap)
+        - [Commands](https://github.com/cyber-sushi/makita/tree/main#commands)
+        - [Movements](https://github.com/cyber-sushi/makita/tree/main#movements)
+        - [Settings](https://github.com/cyber-sushi/makita/tree/main#settings)
+- [Tested controllers](https://github.com/cyber-sushi/makita/tree/main#tested-controllers)
+- [Troubleshooting and FAQ](https://github.com/cyber-sushi/makita/tree/main#troubleshooting-and-faq)
 
 ## Installation
-Makima can be installed automatically or manually.\
-**To install and run Makima automatically as a systemd service:**
-- Download the executable from the [Releases page](https://github.com/cyber-sushi/makima/releases).
-- Retrieve `install.sh`, `makima.service` and _optionally_ `50-makima.rules` from this repo and put them in the same folder as the executable.
+Makita can be installed automatically or manually.\
+**To install and run Makita automatically as a systemd service:**
+- Download the executable from the [Releases page](https://github.com/cyber-sushi/makita/releases).
+- Retrieve `install.sh`, `makita.service` and _optionally_ `50-makita.rules` from this repo and put them in the same folder as the executable.
 - Make sure that `install.sh` is executable (`chmod +x ./install.sh` or right click > properties > execute as a program).
 - Run `sudo ./install.sh username` where `username` is the name of the user you're installing it for.
-- Skip the rest of the "Installation" and "Running Makima" paragraphs and go directly to "Configuration".
+- Skip the rest of the "Installation" and "Running Makita" paragraphs and go directly to "Configuration".
 
-**To install and run Makima manually, refer to the following paragraphs.**
+**To install and run Makita manually, refer to the following paragraphs.**
 
 #### Building from source
 1. Install `rustup` using your distro's package manager or refer to the [official docs](https://www.rust-lang.org/tools/install) if your distro doesn't ship `rustup`.
 2. Run `rustup default stable` which will automatically install Cargo (Rust's package manager) and the Rust toolchain.
 3. Git clone and build with:
 ```
-git clone https://github.com/cyber-sushi/makima
-cd makima
+git clone https://github.com/cyber-sushi/makita
+cd makita
 cargo build --release
 ```
-Once Cargo is done compiling, you should find Makima's executable inside `~/makima/target/release/`.
+Once Cargo is done compiling, you should find Makita's executable inside `~/makita/target/release/`.
 
-## Running Makima
-Make sure that the executable has permissions to run as a program with `chmod +x makima` or with Right Click > Properties > "allow executing as program" or something like that, depending on your file manager.
+## Running Makita
+Make sure that the executable has permissions to run as a program with `chmod +x makita` or with Right Click > Properties > "allow executing as program" or something like that, depending on your file manager.
 
-There are two recommended ways to execute Makima:
-- **Run Makima as a systemd service.**\
+There are two recommended ways to execute Makita:
+- **Run Makita as a systemd service.**\
 Move the executable into `/usr/bin/`.\
-Grab `makima.service` from this repo and edit the `User=` line with your username.\
+Grab `makita.service` from this repo and edit the `User=` line with your username.\
 Move the file into `/etc/systemd/system`, then run `systemctl daemon-reload`.\
-After this, you can start and stop Makima with `systemctl start/stop makima` or you can enable/disable it on startup with `systemctl enable/disable makima`. If you change the config files and you want the changes to take place, restart Makima with `systemctl restart makima`.
+After this, you can start and stop Makita with `systemctl start/stop makita` or you can enable/disable it on startup with `systemctl enable/disable makita`. If you change the config files and you want the changes to take place, restart Makita with `systemctl restart makita`.
 
 > [!NOTE]
-> When running as a systemd service, Makima inherits your systemd user environment, not your shell environment (you can see it with `systemctl --user show-environment`). If you need to pass env variables to it, do so by adding them to the unit file with `Environment=VARIABLE=value`.
+> When running as a systemd service, Makita inherits your systemd user environment, not your shell environment (you can see it with `systemctl --user show-environment`). If you need to pass env variables to it, do so by adding them to the unit file with `Environment=VARIABLE=value`.
 
-- **Run Makima as root with `sudo -E makima`.**\
-Navigate into the directory of the executable and use `sudo -E ./makima`.\
-Alternatively, add Makima to a directory that's in `PATH`, possibly `/usr/bin` or `~/.local/bin` and simply use `sudo -E makima` from anywhere.
+- **Run Makita as root with `sudo -E makita`.**\
+Navigate into the directory of the executable and use `sudo -E ./makita`.\
+Alternatively, add Makita to a directory that's in `PATH`, possibly `/usr/bin` or `~/.local/bin` and simply use `sudo -E makita` from anywhere.
 
 > [!NOTE]
-> The `-E` argument is necessary because it allows Makima to inherit your user environment instead of the root environment when running with `sudo`. You can also add the `-b` argument (`sudo -Eb makima`) to detach if from the terminal and make it run in the background.
+> The `-E` argument is necessary because it allows Makita to inherit your user environment instead of the root environment when running with `sudo`. You can also add the `-b` argument (`sudo -Eb makita`) to detach if from the terminal and make it run in the background.
 
 ## Configuration
-You can find a bunch of [example config files](https://github.com/cyber-sushi/makima/tree/main/examples) on this repo, either pick one of them or create your own from scratch.\
-Makima's config directory defaults to `$HOME/.config/makima` but can be changed through the `MAKIMA_CONFIG` environment variable (if you run Makima as a system service, add it directly to the systemd unit).\
-Each time you make changes to the config file, Makima must be restarted with `systemctl restart makima`.
+You can find a bunch of [example config files](https://github.com/cyber-sushi/makita/tree/main/examples) on this repo, either pick one of them or create your own from scratch.\
+Makita's config directory defaults to `$HOME/.config/makita` but can be changed through the `MAKITA_CONFIG` environment variable (if you run Makita as a system service, add it directly to the systemd unit).\
+Each time you make changes to the config file, Makita must be restarted with `systemctl restart makita`.
 
 ### Config file naming
 To associate a config file to an input device, the file name should be identical to that of the device, plus `.toml` at the end. If your device's name includes a `/`, just omit it.
 
-All config files will be parsed automatically when `makima` is launched.\
-Files that don't end with `.toml` and files that start with `.` (dotfiles) won't be parsed, so you can add a dot at the beginning of the filename to mask them from Makima.
+All config files will be parsed automatically when `makita` is launched.\
+Files that don't end with `.toml` and files that start with `.` (dotfiles) won't be parsed, so you can add a dot at the beginning of the filename to mask them from Makita.
 
 > [!TIP]
 > Example: you run `evtest` and see that your Dualshock 4 controller is named `Sony Interactive Entertainment Wireless Controller`. All you have to do is rename your config file to `Sony Interactive Entertainment Wireless Controller.toml`.
@@ -97,23 +99,23 @@ To apply a config file only to a specific application, just put `::<window_class
 > [!IMPORTANT]
 > App-specific bindings are currently only supported on Hyprland, Sway, Niri, Plasma Wayland and all X11 sessions.\
 > Some applications, like Flatpaks for example, will have names like `org.mozilla.firefox`.\
-> On Wayland, make sure that the `XDG_CURRENT_DESKTOP` environment variable is set, othewise Makima won't be able to use application-specific bindings.
+> On Wayland, make sure that the `XDG_CURRENT_DESKTOP` environment variable is set, othewise Makita won't be able to use application-specific bindings.
 > 
-> On Plasma Wayland, Makima uses `kdotool` ([Github repo](https://github.com/jinliu/kdotool) or [AUR package](https://aur.archlinux.org/packages/kdotool-git)) to retrieve the active window instead of doing so internally, which means that you also need that installed. Sorry about this, but I didn't want to hardcode JavaScript snippets inside of Makima just to communicate with KWin.
+> On Plasma Wayland, Makita uses `kdotool` ([Github repo](https://github.com/jinliu/kdotool) or [AUR package](https://aur.archlinux.org/packages/kdotool-git)) to retrieve the active window instead of doing so internally, which means that you also need that installed. Sorry about this, but I didn't want to hardcode JavaScript snippets inside of Makita just to communicate with KWin.
 
 > [!WARNING]
 > It's been reported that active window retrieval through `kdotool` on Plasma might introduce performance issues, if you experience problems, remove `kdotool`'s executable from `PATH` until I figure out how a solution.
 
 ### Layout hotswapping
-To declare multiple layouts, similarly to app-specific bindings, put `::<int>` at the end of a config file, where `int` is an integer value between 0 and 3, representing the layout number. If not specified, Makima will assume 0.\
-When pressing the key configured in the settings through the `LAYOUT_SWITCHER` parameter, Makima will automatically cycle through the available layouts. If a layout isn't set, e.g. you're on 0 and you switch to the next layout, but number 1 isn't found, Makima will automatically skip to layout 2 and so on.\
+To declare multiple layouts, similarly to app-specific bindings, put `::<int>` at the end of a config file, where `int` is an integer value between 0 and 3, representing the layout number. If not specified, Makita will assume 0.\
+When pressing the key configured in the settings through the `LAYOUT_SWITCHER` parameter, Makita will automatically cycle through the available layouts. If a layout isn't set, e.g. you're on 0 and you switch to the next layout, but number 1 isn't found, Makita will automatically skip to layout 2 and so on.\
 You can also combine layouts and per application bindings by simply putting them both in the config file name.
 
 > [!TIP]
 > Example: declare layout 2 in Nautilus by setting `Wireless Controller::2::org.gnome.Nautilus.toml` or `Wireless Controller::org.gnome.Nautilus::2.toml`.
 
 > [!NOTE]
-> Keep in mind that while bindings and commands are read from each config file independently, settings are only read from the main config file, the one with no layout and associated application specified. If such file isn't present, Makima will use the default values.
+> Keep in mind that while bindings and commands are read from each config file independently, settings are only read from the main config file, the one with no layout and associated application specified. If such file isn't present, Makita will use the default values.
 
 ## Bindings and settings
 The config file is divided into multiple sections:
@@ -190,7 +192,7 @@ Axis events such as scroll wheels and analog stick movements are hardcoded, curr
 - `LSTICK_UP`, `LSTICK_DOWN`, `LSTICK_LEFT`, `LSTICK_RIGHT`, `RSTICK_UP`, `RSTICK_DOWN`, `RSTICK_LEFT`, `RSTICK_RIGHT` - for a game controller's analog sticks
 - `ABS_WHEEL_CW`, `ABS_WHEEL_CCW` - for a tablet's wheel, respectively clockwise and counterclockwise
 
-Refer to the [sample config files](https://github.com/cyber-sushi/makima/tree/main/examples) for more information.
+Refer to the [sample config files](https://github.com/cyber-sushi/makita/tree/main/examples) for more information.
 
 #### Modifiers and custom modifiers:
 You can use as many modifiers as you want when declaring a binding, but the last key _has_ to be a non-modifier key.
@@ -200,10 +202,10 @@ Non-modifier keys (e.g. `KEY_A`) can be set in place of a modifier, automaticall
 If you want a non-modifier key to act as a modifier without remapping it for that device (e.g. you need it as a modifier when used in combination with another device), you can add it to the `CUSTOM_MODIFIERS` setting. Refer to the `[settings]` section for more info.
 
 #### Modifiers across multiple devices:
-Keep in mind that if you want to use modifiers across multiple devices (e.g. `KEY_LEFTCTRL` on your keyboard and `BTN_RIGHT` on your mouse), both devices will have to be read by Makima and thus both will need a config file, even if empty. Having a config file is just a way to tell Makima "Hey, read this device!".
+Keep in mind that if you want to use modifiers across multiple devices (e.g. `KEY_LEFTCTRL` on your keyboard and `BTN_RIGHT` on your mouse), both devices will have to be read by Makita and thus both will need a config file, even if empty. Having a config file is just a way to tell Makita "Hey, read this device!".
 
 #### Chained bindings:
-When declaring a binding, you can put a dash (`-`) in front of it (e.g. `-KEY_A = ["KEY_B"]`) to tell Makima that it's not a standalone binding and it should instead be chained at the end of another sequence.\
+When declaring a binding, you can put a dash (`-`) in front of it (e.g. `-KEY_A = ["KEY_B"]`) to tell Makita that it's not a standalone binding and it should instead be chained at the end of another sequence.\
 Example:
 ```
 # Simulate Alt-Tab: press the buttons in the first binding, then tap the right trigger to advance in the Alt-Tab menu.
@@ -216,7 +218,7 @@ You can declare both a `-BTN_TR2` and a `BTN_TR2` binding: in this case, the fir
 
 ### **[settings]**
 #### `GRAB_DEVICE`
-Sets if Makima should have exclusivity over the device.\
+Sets if Makita should have exclusivity over the device.\
 If `"true"`, no other program will read the original input of the device. If `"false"`, both the original input and the remapped input will be read by applications.
 #### `LSTICK` and `RSTICK`
 Set the function of the left and right analog sticks, respectively.\
@@ -261,7 +263,7 @@ If you're using a Stadia controller, set this to `"true"`, otherwise you won't b
 Defaults to `"false"`.
 
 #### `CHAIN_ONLY`
-When using a [chained binding](https://github.com/cyber-sushi/makima/tree/main#chained-bindings), you can choose the behavior of the key when pressed alone.\
+When using a [chained binding](https://github.com/cyber-sushi/makita/tree/main#chained-bindings), you can choose the behavior of the key when pressed alone.\
 Set to `"true"` (default) to make it fire the event only if other modifiers are active. Set to `"false"` to make it fire its designated event regardless.
 
 #### `LAYOUT_SWITCHER`
@@ -295,12 +297,12 @@ To add other controllers, please open an issue.
 **Q**: Will application-specific bindings be implemented for other desktops like Gnome Wayland?\
 **A**: Gnome on Wayland requires an extension to retrieve the active window through D-Bus, which is why I haven't implemented window tracking for it. If anyone finds a better solution, I'm all for it. Regarding other compositors, feel free to open an issue and I'll look into it.
 
-**Q**: Makima says that it's unable to create a virtual device, what do I do?\
-**A**: Pick `50-makima.rules` from this repo and copy it into `/etc/udev/rules.d/`, then load the `uinput` module with `sudo modprobe uinput`. To load it automatically on boot, create `/etc/modules-load.d/uinput.conf` and write `uinput` inside.
+**Q**: Makita says that it's unable to create a virtual device, what do I do?\
+**A**: Pick `50-makita.rules` from this repo and copy it into `/etc/udev/rules.d/`, then load the `uinput` module with `sudo modprobe uinput`. To load it automatically on boot, create `/etc/modules-load.d/uinput.conf` and write `uinput` inside.
 
-**Q**: SELinux prevents Makima's system service from running, what do I do?\
-**A**: Put `makima.service` inside `/usr/lib/systemd/system` instead of `/etc/systemd/system`, then run the following commands:
-- `sudo semanage fcontext -a -t bin_t "/usr/lib/systemd/system/makima.service"`
-- `sudo restorecon -v /usr/lib/systemd/system/makima.service`
-- `sudo semanage fcontext -a -t bin_t "/usr/bin/makima"`
-- `sudo restorecon -v /usr/bin/makima`
+**Q**: SELinux prevents Makita's system service from running, what do I do?\
+**A**: Put `makita.service` inside `/usr/lib/systemd/system` instead of `/etc/systemd/system`, then run the following commands:
+- `sudo semanage fcontext -a -t bin_t "/usr/lib/systemd/system/makita.service"`
+- `sudo restorecon -v /usr/lib/systemd/system/makita.service`
+- `sudo semanage fcontext -a -t bin_t "/usr/bin/makita"`
+- `sudo restorecon -v /usr/bin/makita`

@@ -1,5 +1,5 @@
 #SAMPLE CONFIG FILE FOR A GENERIC MOUSE
-#Put this in ~/.config/makima and rename it to the exact name of the device as shown by the 'evtest' command, including spaces and capitalization. Omit "/" if present.
+#Put this in ~/.config/makita and rename it to the exact name of the device as shown by the 'evtest' command, including spaces and capitalization. Omit "/" if present.
 #You can find the available keycodes in /usr/include/linux/input-event-codes.h
 #If you're not sure which keycode corresponds to which key, you can run 'evtest', select your device and press the corresponding key/button.
 #Relative and absolute axis events are hard coded, for example use SCROLL_WHEEL_UP and SCROLL_WHEEL_DOWN to rebind wheel movements.
@@ -16,7 +16,7 @@ KEY_LEFTCTRL-KEY_LEFTSHIFT-BTN_LEFT = ["KEY_LEFTSHIFT", "KEY_DELETE"]
 #Examples of Modifier(s) + Axis event => Key(s)
 KEY_LEFTCTRL-KEY_LEFTSHIFT-SCROLL_WHEEL_UP = ["KEY_HOME"]
 KEY_LEFTCTRL-KEY_LEFTSHIFT-KEY_LEFTALT-SCROLL_WHEEL_DOWN = ["KEY_LEFTALT", "KEY_F4"]
-#Keep in mind that if you want to use Modifiers across multiple devices (e.g. KEY_LEFTCTRL on your keyboard and BTN_RIGHT on your mouse), both devices will have to be read by Makima and thus both will need a config file, even if empty. Having a config file is just a way to tell Makima "Hey, read this device!".
+#Keep in mind that if you want to use Modifiers across multiple devices (e.g. KEY_LEFTCTRL on your keyboard and BTN_RIGHT on your mouse), both devices will have to be read by Makita and thus both will need a config file, even if empty. Having a config file is just a way to tell Makita "Hey, read this device!".
 
 [commands]
 #Examples of Modifier + Key => run a shell command

@@ -2,9 +2,9 @@
 
 
 # Define variables
-binary_name="makima"
-service_name="makima.service"
-rules_name="50-makima.rules"
+binary_name="makita"
+service_name="makita.service"
+rules_name="50-makita.rules"
 
 
 # Check for root
@@ -58,17 +58,17 @@ chmod +x "$binary_name"
 cp "$binary_name" /usr/local/bin/
 cp "$rules_name" /etc/udev/rules.d/
 echo "uinput" > /etc/modules-load.d/uinput.conf
-mkdir /home/"$user_name"/.config/makima
+mkdir /home/"$user_name"/.config/makita
 
 
 # Create the systemd unit file
 tee "/etc/systemd/system/$service_name" > /dev/null <<EOF
 [Unit]
-Description=Makima remapping daemon
+Description=Makita remapping daemon
 
 [Service]
 Type=simple
-Environment="MAKIMA_CONFIG=/home/$user_name/.config/makima"
+Environment="MAKITA_CONFIG=/home/$user_name/.config/makita"
 ExecStart=/usr/local/bin/$binary_name
 Restart=always
 RestartSec=3

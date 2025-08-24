@@ -78,8 +78,8 @@ pub fn launch_tasks(
             true
         }
         Ok(_) => {
-            println!("Warning: user has no access to event devices, Makima might not be able to detect all connected devices.\n\
-                    Note: Run Makima with 'sudo -E makima' or as a system service. Refer to the docs for more info. Continuing...\n");
+            println!("Warning: user has no access to event devices, Makita might not be able to detect all connected devices.\n\
+                    Note: Run Makita with 'sudo -E makita' or as a system service. Refer to the docs for more info. Continuing...\n");
             false
         }
         Err(_) => {
@@ -175,7 +175,7 @@ fn set_environment() -> Environment {
                 copy_variables()
             } else {
                 println!("Warning: unable to inherit user environment.\n\
-                        Launch Makima with 'sudo -E makima' or make sure that your systemd unit is running with the 'User=<username>' parameter.\n");
+                        Launch Makita with 'sudo -E makita' or make sure that your systemd unit is running with the 'User=<username>' parameter.\n");
             }
         }
     };
@@ -229,7 +229,7 @@ fn set_environment() -> Environment {
         (Err(_), _) => {
             println!("Warning: unable to retrieve the session type based on XDG_SESSION_TYPE or WAYLAND_DISPLAY env vars.\n\
                     Is your Wayland compositor or X server running?\n\
-                    Exiting Makima.");
+                    Exiting Makita.");
             std::process::exit(0);
         }
         _ => Server::Failed,
@@ -276,12 +276,12 @@ pub fn get_event_stream(path: &Path, config: Vec<Config>) -> EventStream {
             if value == &true.to_string() {
                 device
                     .grab()
-                    .expect("Unable to grab device. Is another instance of Makima running?")
+                    .expect("Unable to grab device. Is another instance of Makita running?")
             }
         }
         None => device
             .grab()
-            .expect("Unable to grab device. Is another instance of Makima running?"),
+            .expect("Unable to grab device. Is another instance of Makita running?"),
     }
     let stream: EventStream = device.into_event_stream().unwrap();
     return stream;

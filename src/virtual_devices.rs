@@ -58,15 +58,15 @@ impl VirtualDevices {
         let pointer_prop = device.properties();
         let keys_builder = VirtualDeviceBuilder::new()
             .expect("Unable to create virtual device through uinput. Take a look at the Troubleshooting section for more info.")
-            .name("Makima Virtual Keyboard/Mouse")
+            .name("Makita Virtual Keyboard/Mouse")
             .with_keys(&key_capabilities).unwrap();
         let axis_builder = VirtualDeviceBuilder::new()
             .expect("Unable to create virtual device through uinput. Take a look at the Troubleshooting section for more info.")
-            .name("Makima Virtual Pointer")
+            .name("Makita Virtual Pointer")
             .with_relative_axes(&axis_capabilities).unwrap();
         let mut abs_builder = VirtualDeviceBuilder::new()
             .expect("Unable to create virtual device through uinput. Take a look at the Troubleshooting section for more info.")
-            .name("Makima Virtual Pen/Tablet")
+            .name("Makita Virtual Pen/Tablet")
             .with_properties(&pointer_prop).unwrap()
             .with_msc(&tab_msc).unwrap()
             .with_relative_axes(&tab_rel).unwrap()

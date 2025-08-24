@@ -66,17 +66,17 @@ impl RubyService {
             // Ruby VM on this thread
             let ruby = unsafe { embed::init() };
 
-            // Define Makima module and methods
-            let makima = ruby.define_module("Makima").unwrap();
-            makima.define_singleton_method("press", function!(rb_press, 1)).unwrap();
-            makima.define_singleton_method("press_down", function!(rb_press_down, 2)).unwrap();
-            makima.define_singleton_method("release", function!(rb_release, 1)).unwrap();
+            // Define Makita module and methods
+            let makita = ruby.define_module("Makita").unwrap();
+            makita.define_singleton_method("press", function!(rb_press, 1)).unwrap();
+            makita.define_singleton_method("press_down", function!(rb_press_down, 2)).unwrap();
+            makita.define_singleton_method("release", function!(rb_release, 1)).unwrap();
 
             // Key constants
-            makima.const_set("KB_LALT", Key::KEY_LEFTALT.code()).unwrap();
-            makima.const_set("KB_LTAB", Key::KEY_TAB.code()).unwrap();
-            makima.const_set("KB_ESC", Key::KEY_ESC.code()).unwrap();
-            makima.const_set("KB_ENTER", Key::KEY_ENTER.code()).unwrap();
+            makita.const_set("KB_LALT", Key::KEY_LEFTALT.code()).unwrap();
+            makita.const_set("KB_LTAB", Key::KEY_TAB.code()).unwrap();
+            makita.const_set("KB_ESC", Key::KEY_ESC.code()).unwrap();
+            makita.const_set("KB_ENTER", Key::KEY_ENTER.code()).unwrap();
 
             // Predefine Event class once
             ruby.eval::<Value>(r#"
@@ -205,7 +205,7 @@ end
         // Set the propagate_input script
         service.set_script(r#"
 def handle(event)
-  Makima.press(event.key) if event.key_down?
+  Makita.press(event.key) if event.key_down?
   return true  # Don't consume the event
 end
         "#.to_string());
@@ -241,7 +241,7 @@ end
         // Set the alt_tab_combo script
         service.set_script(r#"
 def handle(event)
-  Makima.press_down(Makima::KB_LALT, Makima::KB_LTAB)
+  Makita.press_down(Makita::KB_LALT, Makita::KB_LTAB)
   return true  # Don't consume the event
 end
         "#.to_string());

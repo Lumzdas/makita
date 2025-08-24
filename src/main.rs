@@ -13,13 +13,13 @@ use tokio::task::JoinHandle;
 
 #[tokio::main]
 async fn main() {
-    let config_path = match env::var("MAKIMA_CONFIG") {
+    let config_path = match env::var("MAKITA_CONFIG") {
         Ok(path) => {
-            println!("\nMAKIMA_CONFIG set to {:?}.\n", path);
+            println!("\nMAKITA_CONFIG set to {:?}.\n", path);
             match std::fs::read_dir(path) {
                 Ok(dir) => dir,
                 _ => {
-                    println!("Directory not found, exiting Makima.");
+                    println!("Directory not found, exiting Makita.");
                     std::process::exit(0);
                 }
             }
@@ -33,15 +33,15 @@ async fn main() {
                 Ok(user_home) => user_home,
                 _ => "/root".to_string(),
             };
-            let default_config_path = format!("{}/.config/makima", user_home);
+            let default_config_path = format!("{}/.config/makita", user_home);
             println!(
-                "\nMAKIMA_CONFIG environment variable is not set, defaulting to {:?}.\n",
+                "\nMAKITA_CONFIG environment variable is not set, defaulting to {:?}.\n",
                 default_config_path
             );
             match std::fs::read_dir(default_config_path) {
                 Ok(dir) => dir,
                 _ => {
-                    println!("Directory not found, exiting Makima.");
+                    println!("Directory not found, exiting Makita.");
                     std::process::exit(0);
                 }
             }
