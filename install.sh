@@ -86,4 +86,3 @@ systemctl enable --now "$service_name"
 
 
 echo "Installed successfully."
-

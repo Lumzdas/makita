@@ -1,5 +1,6 @@
 use crate::active_client::*;
 use crate::config::{parse_modifiers, Associations, Axis, Cursor, Event, Relative, Scroll};
+use crate::ruby_runtime::{RubyService, RubyEvent, Action, Response};
 use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
@@ -57,6 +58,7 @@ pub struct EventReader {
     current_config: Arc<Mutex<Config>>,
     environment: Environment,
     settings: Settings,
+    ruby_service: Option<RubyService>,
 }
 
 impl EventReader {
@@ -301,6 +303,24 @@ impl EventReader {
             layout_switcher,
             notify_layout_switch,
         };
+
+        // Initialize Ruby service
+        let ruby_service = {
+            let service = RubyService::new();
+            if let Ok(path) = std::env::var("MAKIMA_RUBY_SCRIPT") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    println!("Loading Ruby script from: {}", path);
+                    service.set_script(content);
+                    Some(service)
+                } else {
+                    println!("Warning: failed to read MAKIMA_RUBY_SCRIPT {}.", path);
+                    Some(service)
+                }
+            } else {
+                None
+            }
+        };
+
         Self {
             config,
             stream,
@@ -316,6 +336,7 @@ impl EventReader {
             current_config,
             environment,
             settings,
+            ruby_service,
         }
     }
 
@@ -993,6 +1014,51 @@ impl EventReader {
         if value == 1 {
             self.update_config().await;
         };
+
+        // Try Ruby script execution first
+        if let Some(ruby) = &self.ruby_service {
+            let ev = RubyEvent {
+                key_code: match event {
+                    Event::Key(k) => Some(k.code()),
+                    _ => None,
+                },
+                value,
+            };
+            let resp = ruby.call(ev);
+
+            // Execute actions from Ruby
+            if !resp.actions.is_empty() {
+                let mut virt_dev = self.virt_dev.lock().await;
+                for action in resp.actions {
+                    match action {
+                        Action::Press(code) => {
+                            let k = evdev::Key::new(code);
+                            let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
+                            let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
+                            virt_dev.keys.emit(&[press_event]).unwrap();
+                            virt_dev.keys.emit(&[release_event]).unwrap();
+                        }
+                        Action::PressDown(codes) => {
+                            for code in codes {
+                                let k = evdev::Key::new(code);
+                                let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
+                                virt_dev.keys.emit(&[press_event]).unwrap();
+                            }
+                        }
+                        Action::Release(code) => {
+                            let k = evdev::Key::new(code);
+                            let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
+                            virt_dev.keys.emit(&[release_event]).unwrap();
+                        }
+                    }
+                }
+            }
+
+            if resp.consume {
+                return;
+            }
+        }
+
         let config = self.current_config.lock().await;
         let modifiers = self.modifiers.lock().await.clone();
         if let Some(map) = config.bindings.remap.get(&event) {

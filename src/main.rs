@@ -1,6 +1,7 @@
 mod active_client;
 mod config;
 mod event_reader;
+mod ruby_runtime;
 mod udev_monitor;
 mod virtual_devices;
 
