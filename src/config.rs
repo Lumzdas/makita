@@ -135,17 +135,15 @@ pub struct RawConfig {
 
 impl RawConfig {
   fn new_from_file(file: &str) -> Self {
-    println!(
-      "Parsing config file:\n{:?}\n",
-      file.rsplit_once("/").unwrap().1
-    );
+    println!("Parsing config file:\n{:?}\n", file.rsplit_once("/").unwrap().1);
+
     let file_content: String = std::fs::read_to_string(file).unwrap();
-    let raw_config: RawConfig =
-      toml::from_str(&file_content).expect("Couldn't parse config file.");
+    let raw_config: RawConfig = toml::from_str(&file_content).expect("Couldn't parse config file.");
     let remap = raw_config.remap;
     let movements = raw_config.movements;
     let settings = raw_config.settings;
     let rubies = raw_config.rubies;
+
     Self {
       remap,
       movements,
@@ -219,194 +217,25 @@ fn parse_raw_config(raw_config: RawConfig) -> (Bindings, HashMap<String, String>
   mapped_modifiers.custom.extend(rstick_activation_modifiers);
 
   for (input, output) in remap.clone() {
-    if let Some((mods, event)) = input.rsplit_once("-") {
-      let str_modifiers = mods.split("-").collect::<Vec<&str>>();
-      let mut modifiers: Vec<Event> = Vec::new();
-      for event in str_modifiers.clone() {
-        if let Ok(axis) = Axis::from_str(event) {
-          modifiers.push(Event::Axis(axis));
-        } else if let Ok(key) = Key::from_str(event) {
-          modifiers.push(Event::Key(key));
-        }
-      }
-      modifiers.sort();
-      modifiers.dedup();
-      for modifier in &modifiers {
-        if !mapped_modifiers.default.contains(&modifier) {
-          mapped_modifiers.custom.push(modifier.clone());
-        }
-      }
-      if str_modifiers[0] == "" {
-        modifiers.push(Event::Hold);
-      }
-      if let Ok(event) = Axis::from_str(event) { // TODO: refactor
-        if !bindings.remap.contains_key(&Event::Axis(event)) {
-          bindings.remap.insert(Event::Axis(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.remap.get_mut(&Event::Axis(event)).unwrap().insert(modifiers, output);
-        }
-      } else if let Ok(event) = Key::from_str(event) {
-        if !bindings.remap.contains_key(&Event::Key(event)) {
-          bindings.remap.insert(Event::Key(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.remap.get_mut(&Event::Key(event)).unwrap().insert(modifiers, output);
-        }
-      }
-    } else {
-      let modifiers: Vec<Event> = Vec::new();
-      if let Ok(event) = Axis::from_str(input.as_str()) {
-        if !bindings.remap.contains_key(&Event::Axis(event)) {
-          bindings.remap.insert(Event::Axis(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.remap.get_mut(&Event::Axis(event)).unwrap().insert(modifiers, output);
-        }
-      } else if let Ok(event) = Key::from_str(input.as_str()) {
-        if !bindings.remap.contains_key(&Event::Key(event)) {
-          bindings.remap.insert(Event::Key(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.remap.get_mut(&Event::Key(event)).unwrap().insert(modifiers, output);
-        }
-      }
-    }
-  }
-
-  for (input, output) in movements.clone() {
-    if let Some((mods, event)) = input.rsplit_once("-") {
-      let str_modifiers = mods.split("-").collect::<Vec<&str>>();
-      let mut modifiers: Vec<Event> = Vec::new();
-      for event in str_modifiers.clone() {
-        if let Ok(axis) = Axis::from_str(event) {
-          modifiers.push(Event::Axis(axis));
-        } else if let Ok(key) = Key::from_str(event) {
-          modifiers.push(Event::Key(key));
-        }
-      }
-      modifiers.sort();
-      modifiers.dedup();
-      for modifier in &modifiers {
-        if !mapped_modifiers.default.contains(&modifier) {
-          mapped_modifiers.custom.push(modifier.clone());
-        }
-      }
-      if str_modifiers[0] == "" {
-        modifiers.push(Event::Hold);
-      }
-      if let Ok(event) = Axis::from_str(event) { // TODO: refactor
-        if !bindings.movements.contains_key(&Event::Axis(event)) {
-          bindings.movements.insert(
-            Event::Axis(event),
-            HashMap::from([(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."))]),
-          );
-        } else {
-          bindings
-            .movements
-            .get_mut(&Event::Axis(event))
-            .unwrap()
-            .insert(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."));
-        }
-      } else if let Ok(event) = Key::from_str(event) {
-        if !bindings.movements.contains_key(&Event::Key(event)) {
-          bindings.movements.insert(
-            Event::Key(event),
-            HashMap::from([(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."))]),
-          );
-        } else {
-          bindings
-            .movements
-            .get_mut(&Event::Key(event))
-            .unwrap()
-            .insert(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."));
-        }
-      }
-    } else {
-      let modifiers: Vec<Event> = Vec::new();
-      if let Ok(event) = Axis::from_str(input.as_str()) { // TODO: refactor
-        if !bindings.movements.contains_key(&Event::Axis(event)) {
-          bindings.movements.insert(
-            Event::Axis(event),
-            HashMap::from([(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."))]),
-          );
-        } else {
-          bindings
-            .movements
-            .get_mut(&Event::Axis(event))
-            .unwrap()
-            .insert(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."));
-        }
-      } else if let Ok(event) = Key::from_str(input.as_str()) {
-        if !bindings.movements.contains_key(&Event::Key(event)) {
-          bindings.movements.insert(
-            Event::Key(event),
-            HashMap::from([(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."))]),
-          );
-        } else {
-          bindings
-            .movements
-            .get_mut(&Event::Key(event))
-            .unwrap()
-            .insert(modifiers, Relative::from_str(output.as_str()).expect("Invalid movement in [movements]."));
-        }
-      }
-    }
+    let (custom_bindings, custom_modifiers) = get_bindings_and_modifiers(&input, output, &mapped_modifiers);
+    bindings.remap.extend(custom_bindings);
+    mapped_modifiers.custom.extend(custom_modifiers);
   }
 
   for (input, output) in rubies.clone() {
-    if let Some((mods, event)) = input.rsplit_once("-") {
-      let str_modifiers = mods.split("-").collect::<Vec<&str>>();
-      let mut modifiers: Vec<Event> = Vec::new();
-      for event in str_modifiers.clone() {
-        if let Ok(axis) = Axis::from_str(event) {
-          modifiers.push(Event::Axis(axis));
-        } else if let Ok(key) = Key::from_str(event) {
-          modifiers.push(Event::Key(key));
-        }
-      }
-      modifiers.sort();
-      modifiers.dedup();
-      for modifier in &modifiers {
-        if !mapped_modifiers.default.contains(&modifier) {
-          mapped_modifiers.custom.push(modifier.clone());
-        }
-      }
-      if str_modifiers[0] == "" {
-        modifiers.push(Event::Hold);
-      }
-      if let Ok(event) = Axis::from_str(event) { // TODO: refactor
-        if !bindings.rubies.contains_key(&Event::Axis(event)) {
-          bindings.rubies.insert(Event::Axis(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.rubies.get_mut(&Event::Axis(event)).unwrap().insert(modifiers, output);
-        }
-      } else if let Ok(event) = Key::from_str(event) {
-        if !bindings.rubies.contains_key(&Event::Key(event)) {
-          bindings.rubies.insert(Event::Key(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.rubies.get_mut(&Event::Key(event)).unwrap().insert(modifiers, output);
-        }
-      }
-    } else {
-      let modifiers: Vec<Event> = Vec::new();
-      if let Ok(event) = Axis::from_str(input.as_str()) {
-        if !bindings.rubies.contains_key(&Event::Axis(event)) {
-          bindings.rubies.insert(Event::Axis(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.rubies.get_mut(&Event::Axis(event)).unwrap().insert(modifiers, output);
-        }
-      } else if let Ok(event) = Key::from_str(input.as_str()) {
-        if !bindings.rubies.contains_key(&Event::Key(event)) {
-          bindings.rubies.insert(Event::Key(event), HashMap::from([(modifiers, output)]));
-        } else {
-          bindings.rubies.get_mut(&Event::Key(event)).unwrap().insert(modifiers, output);
-        }
-      }
-    }
+    let (custom_bindings, custom_modifiers) = get_bindings_and_modifiers(&input, output, &mapped_modifiers);
+    bindings.rubies.extend(custom_bindings);
+    mapped_modifiers.custom.extend(custom_modifiers);
   }
 
-  mapped_modifiers.custom.sort();
-  mapped_modifiers.custom.dedup();
-  mapped_modifiers
-    .all
-    .extend(mapped_modifiers.default.clone());
+  for (input, bad_output) in movements.clone() {
+    let output = Relative::from_str(bad_output.as_str()).expect("Invalid movement in [movements].");
+    let (custom_bindings, custom_modifiers) = get_bindings_and_modifiers(&input, output, &mapped_modifiers);
+    bindings.movements.extend(custom_bindings);
+    mapped_modifiers.custom.extend(custom_modifiers);
+  }
+
+  mapped_modifiers.all.extend(mapped_modifiers.default.clone());
   mapped_modifiers.all.extend(mapped_modifiers.custom.clone());
   mapped_modifiers.all.sort();
   mapped_modifiers.all.dedup();
@@ -432,4 +261,54 @@ pub fn parse_modifiers(settings: &HashMap<String, String>, parameter: &str) -> V
     }
     None => Vec::new(),
   }
+}
+
+fn get_bindings_and_modifiers<T>(input: &String, output: T, mapped_modifiers: &MappedModifiers) -> (HashMap<Event, HashMap<Vec<Event>, T>>, Vec<Event>) {
+  if let Some((mods, event_string)) = input.rsplit_once("-") {
+    let (modifiers, custom_modifiers) = get_multi_modifiers(mods, &mapped_modifiers);
+    (get_bindings(modifiers, event_string, output), custom_modifiers)
+  } else {
+    (get_bindings(Vec::new(), input.as_str(), output), Vec::new())
+  }
+}
+
+fn get_multi_modifiers(mods: &str, mapped_modifiers: &MappedModifiers) -> (Vec<Event>, Vec<Event>) {
+  let mut custom_modifiers: Vec<Event> = Vec::new();
+  let str_modifiers = mods.split("-").collect::<Vec<&str>>();
+  let mut modifiers: Vec<Event> = Vec::new();
+
+  for event in str_modifiers.clone() {
+    if let Ok(axis) = Axis::from_str(event) {
+      modifiers.push(Event::Axis(axis));
+    } else if let Ok(key) = Key::from_str(event) {
+      modifiers.push(Event::Key(key));
+    }
+  }
+
+  for modifier in &modifiers {
+    if !mapped_modifiers.default.contains(&modifier) { custom_modifiers.push(modifier.clone()) }
+  }
+  if str_modifiers[0] == "" { modifiers.push(Event::Hold); }
+
+  (modifiers, custom_modifiers)
+}
+
+fn get_bindings<T>(modifiers: Vec<Event>, event_string: &str, output: T) -> HashMap<Event, HashMap<Vec<Event>, T>> {
+  let mut bindings: HashMap<Event, HashMap<Vec<Event>, T>> = HashMap::new();
+
+  if let Ok(event) = Axis::from_str(event_string) { // TODO: refactor
+    if !bindings.contains_key(&Event::Axis(event)) {
+      bindings.insert(Event::Axis(event), HashMap::from([(modifiers, output)]));
+    } else {
+      bindings.get_mut(&Event::Axis(event)).unwrap().insert(modifiers, output);
+    }
+  } else if let Ok(event) = Key::from_str(event_string) {
+    if !bindings.contains_key(&Event::Key(event)) {
+      bindings.insert(Event::Key(event), HashMap::from([(modifiers, output)]));
+    } else {
+      bindings.get_mut(&Event::Key(event)).unwrap().insert(modifiers, output);
+    }
+  };
+
+  bindings
 }

@@ -185,7 +185,6 @@ mod tests {
     // Give the Ruby thread time to initialize
     thread::sleep(Duration::from_millis(200));
 
-    // Load the eat_input script
     service.load_script("eat_input".to_string(), "test_script".to_string());
 
     // Give time for script to be loaded (simulate from string for test)
@@ -209,7 +208,6 @@ mod tests {
     // Give the Ruby thread time to initialize
     thread::sleep(Duration::from_millis(100));
 
-    // Load the propagate_input script
     service.load_script("propagate_input".to_string(), "examples/ruby_scripts/propagate_input.rb".to_string());
 
     // Give time for script to be loaded
@@ -240,7 +238,6 @@ mod tests {
     // Give the Ruby thread time to initialize
     thread::sleep(Duration::from_millis(100));
 
-    // Load the alt_tab_combo script
     service.load_script("alt_tab_combo".to_string(), "examples/ruby_scripts/alt_tab_combo.rb".to_string());
 
     // Give time for script to be loaded
