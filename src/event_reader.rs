@@ -80,47 +80,16 @@ impl EventReader {
         let scroll_movement = Arc::new(Mutex::new((0, 0)));
         let device_is_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(true));
         let active_layout: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
+
         let current_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(
-            config
-                .iter()
-                .find(|&x| x.associations == Associations::default())
-                .unwrap()
-                .clone(),
+            config.iter().find(|&x| x.associations == Associations::default()).unwrap().clone()
         ));
-        let lstick_function = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("LSTICK")
-            .unwrap_or(&"cursor".to_string())
-            .to_string();
-        let lstick_sensitivity: u64 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("LSTICK_SENSITIVITY")
-            .unwrap_or(&"0".to_string())
-            .parse::<u64>()
-            .expect("Invalid value for LSTICK_SENSITIVITY, please use an integer value >= 0");
-        let lstick_deadzone: i32 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("LSTICK_DEADZONE")
-            .unwrap_or(&"5".to_string())
-            .parse::<i32>()
-            .expect("Invalid value for LSTICK_DEADZONE, please use an integer between 0 and 128.");
-        let lstick_activation_modifiers: Vec<Event> = parse_modifiers(
-            &config
-                .iter()
-                .find(|&x| x.associations == Associations::default())
-                .unwrap()
-                .settings,
-            "LSTICK_ACTIVATION_MODIFIERS",
-        );
+        let settings = config.iter().find(|&x| x.associations == Associations::default()).unwrap().settings.clone();
+
+        let lstick_function = settings.get("LSTICK").unwrap_or(&"cursor".to_string()).to_string();
+        let lstick_sensitivity: u64 = settings.get("LSTICK_SENSITIVITY").unwrap_or(&"0".to_string()).parse::<u64>().expect("Invalid LSTICK_SENSITIVITY, use integer >= 0");
+        let lstick_deadzone: i32 = settings.get("LSTICK_DEADZONE").unwrap_or(&"5".to_string()).parse::<i32>().expect("Invalid LSTICK_DEADZONE, use integer 0 to 128.");
+        let lstick_activation_modifiers: Vec<Event> = parse_modifiers(&settings, "LSTICK_ACTIVATION_MODIFIERS");
         let lstick = Stick {
             function: lstick_function,
             sensitivity: lstick_sensitivity,
@@ -128,40 +97,10 @@ impl EventReader {
             activation_modifiers: lstick_activation_modifiers,
         };
 
-        let rstick_function: String = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("RSTICK")
-            .unwrap_or(&"scroll".to_string())
-            .to_string();
-        let rstick_sensitivity: u64 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("RSTICK_SENSITIVITY")
-            .unwrap_or(&"0".to_string())
-            .parse::<u64>()
-            .expect("Invalid value for RSTICK_SENSITIVITY, please use an integer value >= 0");
-        let rstick_deadzone: i32 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("RSTICK_DEADZONE")
-            .unwrap_or(&"5".to_string())
-            .parse::<i32>()
-            .expect("Invalid value for RSTICK_DEADZONE, please use an integer between 0 and 128.");
-        let rstick_activation_modifiers: Vec<Event> = parse_modifiers(
-            &config
-                .iter()
-                .find(|&x| x.associations == Associations::default())
-                .unwrap()
-                .settings,
-            "RSTICK_ACTIVATION_MODIFIERS",
-        );
+        let rstick_function: String = settings.get("RSTICK").unwrap_or(&"scroll".to_string()).to_string();
+        let rstick_sensitivity: u64 = settings.get("RSTICK_SENSITIVITY").unwrap_or(&"0".to_string()).parse::<u64>().expect("Invalid RSTICK_SENSITIVITY, use integer >= 0");
+        let rstick_deadzone: i32 = settings.get("RSTICK_DEADZONE").unwrap_or(&"5".to_string()).parse::<i32>().expect("Invalid RSTICK_DEADZONE, use integer 0 to 128.");
+        let rstick_activation_modifiers: Vec<Event> = parse_modifiers(&settings, "RSTICK_ACTIVATION_MODIFIERS");
         let rstick = Stick {
             function: rstick_function,
             sensitivity: rstick_sensitivity,
@@ -169,95 +108,15 @@ impl EventReader {
             activation_modifiers: rstick_activation_modifiers,
         };
 
-        let axis_16_bit: bool = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("16_BIT_AXIS")
-            .unwrap_or(&"false".to_string())
-            .parse()
-            .expect("16_BIT_AXIS can only be true or false.");
-
-        let stadia: bool = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("STADIA")
-            .unwrap_or(&"false".to_string())
-            .parse()
-            .expect("STADIA can only be true or false.");
-
-        let chain_only: bool = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("CHAIN_ONLY")
-            .unwrap_or(&"true".to_string())
-            .parse()
-            .expect("CHAIN_ONLY can only be true or false.");
-
-        let invert_cursor_axis: bool = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("INVERT_CURSOR_AXIS")
-            .unwrap_or(&"false".to_string())
-            .parse()
-            .expect("INVERT_CURSOR_AXIS can only be true or false.");
-
-        let invert_scroll_axis: bool = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("INVERT_SCROLL_AXIS")
-            .unwrap_or(&"false".to_string())
-            .parse()
-            .expect("INVERT_SCROLL_AXIS can only be true or false.");
-
-        let cursor_speed: i32 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("CURSOR_SPEED")
-            .unwrap_or(&"0".to_string())
-            .parse()
-            .expect("Invalid value for CURSOR_SPEED, please use an integer value.");
-
-        let cursor_acceleration: f32 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("CURSOR_ACCEL")
-            .unwrap_or(&"1".to_string())
-            .parse()
-            .expect("Invalid value for CURSOR_ACCEL, please use an float value between 0 and 1.");
-
-        let scroll_speed: i32 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("SCROLL_SPEED")
-            .unwrap_or(&"0".to_string())
-            .parse()
-            .expect("Invalid value for SCROLL_SPEED, please use an integer value.");
-
-        let scroll_acceleration: f32 = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("SCROLL_ACCEL")
-            .unwrap_or(&"1".to_string())
-            .parse()
-            .expect("Invalid value for SCROLL_ACCEL, please use a float value between 0 and 1.");
+        let axis_16_bit: bool = settings.get("16_BIT_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid 16_BIT_AXIS use true/false.");
+        let stadia: bool = settings.get("STADIA").unwrap_or(&"false".to_string()).parse().expect("Invalid STADIA use true/false.");
+        let chain_only: bool = settings.get("CHAIN_ONLY").unwrap_or(&"true".to_string()).parse().expect("Invalid CHAIN_ONLY use true/false.");
+        let invert_cursor_axis: bool = settings.get("INVERT_CURSOR_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid INVERT_CURSOR_AXIS use true/false.");
+        let invert_scroll_axis: bool = settings.get("INVERT_SCROLL_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid INVERT_SCROLL_AXIS use true/false.");
+        let cursor_speed: i32 = settings.get("CURSOR_SPEED").unwrap_or(&"0".to_string()).parse().expect("Invalid CURSOR_SPEED, use integer.");
+        let cursor_acceleration: f32 = settings.get("CURSOR_ACCEL").unwrap_or(&"1".to_string()).parse().expect("Invalid CURSOR_ACCEL, use float 0 to 1.");
+        let scroll_speed: i32 = settings.get("SCROLL_SPEED").unwrap_or(&"0".to_string()).parse().expect("Invalid SCROLL_SPEED, use integer.");
+        let scroll_acceleration: f32 = settings.get("SCROLL_ACCEL").unwrap_or(&"1".to_string()).parse().expect("Invalid SCROLL_ACCEL, use float 0 to 1.");
 
         let cursor = Movement {
             speed: cursor_speed,
@@ -269,26 +128,8 @@ impl EventReader {
             acceleration: scroll_acceleration,
         };
 
-        let layout_switcher: Key = Key::from_str(
-            config
-                .iter()
-                .find(|&x| x.associations == Associations::default())
-                .unwrap()
-                .settings
-                .get("LAYOUT_SWITCHER")
-                .unwrap_or(&"BTN_0".to_string()),
-        )
-        .expect("LAYOUT_SWITCHER is not a valid Key.");
-
-        let notify_layout_switch: bool = config
-            .iter()
-            .find(|&x| x.associations == Associations::default())
-            .unwrap()
-            .settings
-            .get("NOTIFY_LAYOUT_SWITCH")
-            .unwrap_or(&"false".to_string())
-            .parse()
-            .expect("NOTIFY_LAYOUT_SWITCH can only be true or false.");
+        let layout_switcher: Key = Key::from_str(settings.get("LAYOUT_SWITCHER").unwrap_or(&"BTN_0".to_string())).expect("LAYOUT_SWITCHER is not a valid Key.");
+        let notify_layout_switch: bool = settings.get("NOTIFY_LAYOUT_SWITCH").unwrap_or(&"false".to_string()).parse().expect("Invalid NOTIFY_LAYOUT_SWITCH use true/false.");
 
         let settings = Settings {
             lstick,
@@ -327,11 +168,7 @@ impl EventReader {
                 }
             }
 
-            if has_scripts {
-                Some(service)
-            } else {
-                None
-            }
+            if has_scripts { Some(service) } else { None }
         };
 
         Self {
@@ -356,11 +193,7 @@ impl EventReader {
     pub async fn start(&self) {
         println!(
             "{:?} detected, reading events.\n",
-            self.config
-                .iter()
-                .find(|&x| x.associations == Associations::default())
-                .unwrap()
-                .name
+            self.current_config.lock().await.name
         );
         tokio::join!(
             self.event_loop(),
@@ -382,11 +215,7 @@ impl EventReader {
         let switcher: Key = self.settings.layout_switcher;
         let mut stream = self.stream.lock().await;
         let mut pen_events: Vec<InputEvent> = Vec::new();
-        let is_tablet: bool = stream
-            .device()
-            .supported_keys()
-            .unwrap_or(&evdev::AttributeSet::new())
-            .contains(Key::BTN_TOOL_PEN);
+        let is_tablet: bool = stream.device().supported_keys().unwrap_or(&evdev::AttributeSet::new()).contains(Key::BTN_TOOL_PEN);
         let mut max_abs_wheel = 0;
         if let Ok(abs_state) = stream.device().get_abs_state() {
             for state in abs_state {
