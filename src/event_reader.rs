@@ -522,14 +522,14 @@ impl EventReader {
                             }
                             "bind" => {
                                 let axis_value = self.get_axis_value(&event, &self.settings.rstick.deadzone).await;
-                                let clamped_value = if axis_value < 0 {
+                                let direction = if axis_value < 0 {
                                     -1
                                 } else if axis_value > 0 {
                                     1
                                 } else {
                                     0
                                 };
-                                match clamped_value {
+                                match direction {
                                     -1 => {
                                         if rstick_values.1 != -1 {
                                             self.convert_event(event, Event::Axis(Axis::RSTICK_UP), 1, false).await;
@@ -633,15 +633,14 @@ impl EventReader {
                         }
                     }
 
-                    if resp.consume {
-                        return;
-                    }
+                    if resp.consume { return; }
                 }
             }
         }
 
         let config = self.current_config.lock().await;
         let modifiers = self.modifiers.lock().await.clone();
+
         if let Some(map) = config.bindings.remap.get(&event) {
             if let Some(event_list) = map.get(&modifiers) {
                 self.emit_event(
@@ -651,8 +650,7 @@ impl EventReader {
                     &config,
                     modifiers.is_empty(),
                     !modifiers.is_empty(),
-                )
-                .await;
+                ).await;
                 if send_zero {
                     let modifiers = self.modifiers.lock().await.clone();
                     self.emit_event(
@@ -662,47 +660,38 @@ impl EventReader {
                         &config,
                         modifiers.is_empty(),
                         !modifiers.is_empty(),
-                    )
-                    .await;
+                    ).await;
                 }
                 return;
             }
             if let Some(event_list) = map.get(&vec![Event::Hold]) {
                 if !modifiers.is_empty() || self.settings.chain_only == false {
-                    self.emit_event(event_list, value, &modifiers, &config, false, false)
-                        .await;
+                    self.emit_event(event_list, value, &modifiers, &config, false, false).await;
                     return;
                 }
             }
             if let Some(map) = config.bindings.movements.get(&event) {
                 if let Some(movement) = map.get(&modifiers) {
-                    if value <= 1 {
-                        self.emit_movement(movement, value).await;
-                    }
+                    if value <= 1 { self.emit_movement(movement, value).await; }
                     return;
                 };
             }
             if let Some(event_list) = map.get(&Vec::new()) {
-                self.emit_event(event_list, value, &modifiers, &config, true, false)
-                    .await;
+                self.emit_event(event_list, value, &modifiers, &config, true, false).await;
                 if send_zero {
                     let modifiers = self.modifiers.lock().await.clone();
-                    self.emit_event(event_list, 0, &modifiers, &config, true, false)
-                        .await;
+                    self.emit_event(event_list, 0, &modifiers, &config, true, false).await;
                 }
                 return;
             }
         }
         if let Some(map) = config.bindings.movements.get(&event) {
             if let Some(movement) = map.get(&modifiers) {
-                if value <= 1 {
-                    self.emit_movement(movement, value).await;
-                }
+                if value <= 1 { self.emit_movement(movement, value).await; }
                 return;
             };
         }
-        self.emit_nonmapped_event(default_event, event, value, &modifiers, &config)
-            .await;
+        self.emit_nonmapped_event(default_event, event, value, &modifiers, &config).await;
     }
 
     async fn emit_event(
@@ -721,40 +710,34 @@ impl EventReader {
             for key in released_keys {
                 if config.mapped_modifiers.all.contains(&Event::Key(key)) {
                     self.toggle_modifiers(Event::Key(key), 0, &config).await;
-                    let virtual_event: InputEvent =
-                        InputEvent::new_now(EventType::KEY, key.code(), 0);
+                    let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
                     virt_dev.keys.emit(&[virtual_event]).unwrap();
                 }
             }
         } else if ignore_modifiers {
             for key in modifiers.iter() {
                 if let Event::Key(key) = key {
-                    let virtual_event: InputEvent =
-                        InputEvent::new_now(EventType::KEY, key.code(), 0);
+                    let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
                     virt_dev.keys.emit(&[virtual_event]).unwrap();
                 }
             }
         }
         for key in event_list {
             if release_keys && value != 2 {
-                self.toggle_modifiers(Event::Key(*key), value, &config)
-                    .await;
+                self.toggle_modifiers(Event::Key(*key), value, &config).await;
             }
             if config.mapped_modifiers.custom.contains(&Event::Key(*key)) {
                 if value == 0 && !*modifier_was_activated {
-                    let virtual_event: InputEvent =
-                        InputEvent::new_now(EventType::KEY, key.code(), 1);
+                    let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 1);
                     virt_dev.keys.emit(&[virtual_event]).unwrap();
-                    let virtual_event: InputEvent =
-                        InputEvent::new_now(EventType::KEY, key.code(), 0);
+                    let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
                     virt_dev.keys.emit(&[virtual_event]).unwrap();
                     *modifier_was_activated = true;
                 } else if value == 1 {
                     *modifier_was_activated = false;
                 }
             } else {
-                let virtual_event: InputEvent =
-                    InputEvent::new_now(EventType::KEY, key.code(), value);
+                let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), value);
                 virt_dev.keys.emit(&[virtual_event]).unwrap();
                 *modifier_was_activated = true;
             }
@@ -782,11 +765,9 @@ impl EventReader {
         self.toggle_modifiers(event, value, &config).await;
         if config.mapped_modifiers.custom.contains(&event) {
             if value == 0 && !*modifier_was_activated {
-                let virtual_event: InputEvent =
-                    InputEvent::new_now(default_event.event_type(), default_event.code(), 1);
+                let virtual_event: InputEvent = InputEvent::new_now(default_event.event_type(), default_event.code(), 1);
                 virt_dev.keys.emit(&[virtual_event]).unwrap();
-                let virtual_event: InputEvent =
-                    InputEvent::new_now(default_event.event_type(), default_event.code(), 0);
+                let virtual_event: InputEvent = InputEvent::new_now(default_event.event_type(), default_event.code(), 0);
                 virt_dev.keys.emit(&[virtual_event]).unwrap();
                 *modifier_was_activated = true;
             } else if value == 1 {
@@ -795,19 +776,10 @@ impl EventReader {
         } else {
             *modifier_was_activated = true;
             match default_event.event_type() {
-                EventType::KEY => {
-                    virt_dev.keys.emit(&[default_event]).unwrap();
-                }
-                EventType::RELATIVE => {
-                    virt_dev.axis.emit(&[default_event]).unwrap();
-                }
-                EventType::ABSOLUTE => {
-                    virt_dev.abs.emit(&[default_event]).unwrap();
-                }
-                EventType::MISC => {
-                    let mut virt_dev = self.virt_dev.lock().await;
-                    virt_dev.abs.emit(&[default_event]).unwrap();
-                }
+                EventType::KEY => virt_dev.keys.emit(&[default_event]).unwrap(),
+                EventType::RELATIVE => virt_dev.axis.emit(&[default_event]).unwrap(),
+                EventType::ABSOLUTE => virt_dev.abs.emit(&[default_event]).unwrap(),
+                EventType::MISC => self.virt_dev.lock().await.abs.emit(&[default_event]).unwrap(),
                 _ => {}
             }
         }
@@ -815,22 +787,10 @@ impl EventReader {
 
     async fn emit_default_event(&self, event: InputEvent) {
         match event.event_type() {
-            EventType::KEY => {
-                let mut virt_dev = self.virt_dev.lock().await;
-                virt_dev.keys.emit(&[event]).unwrap();
-            }
-            EventType::RELATIVE => {
-                let mut virt_dev = self.virt_dev.lock().await;
-                virt_dev.axis.emit(&[event]).unwrap();
-            }
-            EventType::ABSOLUTE => {
-                let mut virt_dev = self.virt_dev.lock().await;
-                virt_dev.abs.emit(&[event]).unwrap();
-            }
-            EventType::MISC => {
-                let mut virt_dev = self.virt_dev.lock().await;
-                virt_dev.abs.emit(&[event]).unwrap();
-            }
+            EventType::KEY => self.virt_dev.lock().await.keys.emit(&[event]).unwrap(),
+            EventType::RELATIVE => self.virt_dev.lock().await.axis.emit(&[event]).unwrap(),
+            EventType::ABSOLUTE => self.virt_dev.lock().await.abs.emit(&[event]).unwrap(),
+            EventType::MISC => self.virt_dev.lock().await.abs.emit(&[event]).unwrap(),
             _ => {}
         }
     }
@@ -978,6 +938,7 @@ impl EventReader {
         })
     }
 
+    // TODO: parametrise
     pub async fn cursor_loop(&self) {
         let (cursor, sensitivity, activation_modifiers) =
             if self.settings.lstick.function.as_str() == "cursor" {
@@ -995,6 +956,7 @@ impl EventReader {
             } else {
                 ("disabled", 0, vec![])
             };
+
         if sensitivity != 0 {
             while *self.device_is_connected.lock().await {
                 {
@@ -1013,10 +975,8 @@ impl EventReader {
                             } else {
                                 (stick_position[0], stick_position[1])
                             };
-                            let virtual_event_x: InputEvent =
-                                InputEvent::new_now(EventType::RELATIVE, 0, x_coord);
-                            let virtual_event_y: InputEvent =
-                                InputEvent::new_now(EventType::RELATIVE, 1, y_coord);
+                            let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 0, x_coord);
+                            let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 1, y_coord);
                             let mut virt_dev = self.virt_dev.lock().await;
                             virt_dev.axis.emit(&[virtual_event_x]).unwrap();
                             virt_dev.axis.emit(&[virtual_event_y]).unwrap();
@@ -1025,8 +985,6 @@ impl EventReader {
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(sensitivity)).await;
             }
-        } else {
-            return;
         }
     }
 
@@ -1065,10 +1023,8 @@ impl EventReader {
                             } else {
                                 (stick_position[0], stick_position[1])
                             };
-                            let virtual_event_x: InputEvent =
-                                InputEvent::new_now(EventType::RELATIVE, 12, x_coord);
-                            let virtual_event_y: InputEvent =
-                                InputEvent::new_now(EventType::RELATIVE, 11, y_coord);
+                            let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 12, x_coord);
+                            let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 11, y_coord);
                             let mut virt_dev = self.virt_dev.lock().await;
                             virt_dev.axis.emit(&[virtual_event_x]).unwrap();
                             virt_dev.axis.emit(&[virtual_event_y]).unwrap();
@@ -1082,6 +1038,7 @@ impl EventReader {
         }
     }
 
+    // TODO: parametrise
     pub async fn key_cursor_loop(&self) {
         let (speed, acceleration, mut current_speed) = (
             if self.settings.cursor.speed == 0 {
@@ -1108,20 +1065,12 @@ impl EventReader {
                     }
                     if cursor_movement.0 != 0 {
                         let mut virt_dev = self.virt_dev.lock().await;
-                        let virtual_event_x: InputEvent = InputEvent::new_now(
-                            EventType::RELATIVE,
-                            0,
-                            cursor_movement.0 * current_speed as i32,
-                        );
+                        let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 0, cursor_movement.0 * current_speed as i32);
                         virt_dev.axis.emit(&[virtual_event_x]).unwrap();
                     }
                     if cursor_movement.1 != 0 {
                         let mut virt_dev = self.virt_dev.lock().await;
-                        let virtual_event_y: InputEvent = InputEvent::new_now(
-                            EventType::RELATIVE,
-                            1,
-                            cursor_movement.1 * current_speed as i32,
-                        );
+                        let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 1, cursor_movement.1 * current_speed as i32);
                         virt_dev.axis.emit(&[virtual_event_y]).unwrap();
                     }
                 }
@@ -1156,19 +1105,11 @@ impl EventReader {
                     }
                     let mut virt_dev = self.virt_dev.lock().await;
                     if scroll_movement.0 != 0 {
-                        let virtual_event_x: InputEvent = InputEvent::new_now(
-                            EventType::RELATIVE,
-                            12,
-                            scroll_movement.0 * current_speed as i32,
-                        );
+                        let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 12, scroll_movement.0 * current_speed as i32);
                         virt_dev.axis.emit(&[virtual_event_x]).unwrap();
                     }
                     if scroll_movement.1 != 0 {
-                        let virtual_event_y: InputEvent = InputEvent::new_now(
-                            EventType::RELATIVE,
-                            11,
-                            scroll_movement.1 * current_speed as i32,
-                        );
+                        let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 11, scroll_movement.1 * current_speed as i32);
                         virt_dev.axis.emit(&[virtual_event_y]).unwrap();
                     }
                 }
