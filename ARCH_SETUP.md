@@ -165,11 +165,6 @@ KEY_CAPSLOCK = "KEY_ESC"
 # Remap Right Alt to Right Ctrl
 KEY_RIGHTALT = "KEY_RIGHTCTRL"
 
-[bindings.commands]
-# Volume controls
-KEY_VOLUMEUP = "amixer set Master 5%+"
-KEY_VOLUMEDOWN = "amixer set Master 5%-"
-
 [settings]
 LAYOUT_SWITCHER = "KEY_SCROLLLOCK"
 NOTIFY_LAYOUT_SWITCH = false
@@ -210,8 +205,6 @@ For advanced input processing, you can use Ruby scripts:
    ```
 
 ---
-
-## Commands Reference
 
 ### Service Management
 

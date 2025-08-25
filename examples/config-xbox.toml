@@ -28,10 +28,6 @@ BTN_DPAD_LEFT = ["KEY_LEFT"] #directional pad left
 RSTICK_UP = ["KEY_UP"] #right analog stick up
 RSTICK_DOWN = ["KEY_DOWN"] #right analog stick down
 
-[commands]
-RSTICK_LEFT = ["foot sh -c 'pacman -Q | wc -l && sleep 1 && neofetch' && sleep 5"] #right analog stick left
-RSTICK_RIGHT = ["firefox", "discord"] #right analog stick right
-
 [settings]
 LSTICK_SENSITIVITY = "6" #sensitivity when scrolling or moving cursor, lower value is higher sensitivity, minimum 1
 RSTICK_SENSITIVITY = "6" #sensitivity when scrolling or moving cursor, lower value is higher sensitivity, minimum 1

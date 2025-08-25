@@ -6,7 +6,7 @@ It works on both Wayland and X11 as it relies on the `evdev` kernel interface.
 Forked from the amazing [makima](https://github.com/cyber-sushi/makima).
 
 ## Features
-- Translates keys, buttons or combinations to other keys, sequences or shell commands.
+- Translates keys, buttons or combinations to other keys or sequences.
 - Devices are remapped individually using simple TOML config files.
 - Automatically switch layouts based on the active window (only on Hyprland, Sway, Niri and X11 currently).
 - Works with keyboards, mice, controllers, tablets and any other device that uses `KEY`/`BTN` input events present inside `/usr/include/linux/input-event-codes.h`.
@@ -26,7 +26,6 @@ Forked from the amazing [makima](https://github.com/cyber-sushi/makima).
     - [Layout hotswapping](https://github.com/cyber-sushi/makita/tree/main#layout-hotswapping)
     - [Change bindings](https://github.com/cyber-sushi/makita/tree/main#bindings-and-settings)
         - [Remap](https://github.com/cyber-sushi/makita/tree/main#remap)
-        - [Commands](https://github.com/cyber-sushi/makita/tree/main#commands)
         - [Movements](https://github.com/cyber-sushi/makita/tree/main#movements)
         - [Settings](https://github.com/cyber-sushi/makita/tree/main#settings)
 - [Tested controllers](https://github.com/cyber-sushi/makita/tree/main#tested-controllers)
@@ -115,12 +114,12 @@ You can also combine layouts and per application bindings by simply putting them
 > Example: declare layout 2 in Nautilus by setting `Wireless Controller::2::org.gnome.Nautilus.toml` or `Wireless Controller::org.gnome.Nautilus::2.toml`.
 
 > [!NOTE]
-> Keep in mind that while bindings and commands are read from each config file independently, settings are only read from the main config file, the one with no layout and associated application specified. If such file isn't present, Makita will use the default values.
+> Keep in mind that while bindings are read from each config file independently, settings are only read from the main config file, the one with no layout and associated application specified. If such file isn't present, Makita will use the default values.
 
 ## Bindings and settings
 The config file is divided into multiple sections:
 - `[remap]`, where you can rebind keys, buttons, combinations and some axis events to other keys, buttons and combinations.
-- `[commands]`, where you can rebind keys, buttons, combinations and some axis events to shell commands.
+- `[rubies]`, TODO.
 - `[movements]`, where you can rebind keys, buttons, combinations and some axis events to cursor movements and scrolling.
 - `[settings]`, where you can configure a few settings.
 
@@ -139,19 +138,9 @@ MODIFIER1-MODIFIER2-MODIFIER3-KEY1 = ["KEY1"]
 MODIFIER1-MODIFIER2-MODIFIER3-KEY1 = ["KEY1", "KEY2", "KEY3"]
 ```
 
-### **[commands]**
+### **[rubies]**
 ```
-# Use a key to invoke a shell command
-KEY1 = ["command1"]
-
-# Use a key to invoke a list of shell commands
-KEY1 = ["command1", "command2", "command3"]
-
-# Use a key sequence to invoke a shell command
-MODIFIER1-MODIFIER2-MODIFIER3-KEY1 = ["command1"]
-
-# Use a key sequence to invoke a list of shell commands
-MODIFIER1-MODIFIER2-MODIFIER3-KEY1 = ["command1", "command2", "command3"]
+TODO
 ```
 
 ### **[movements]**
@@ -222,7 +211,7 @@ Sets if Makita should have exclusivity over the device.\
 If `"true"`, no other program will read the original input of the device. If `"false"`, both the original input and the remapped input will be read by applications.
 #### `LSTICK` and `RSTICK`
 Set the function of the left and right analog sticks, respectively.\
-`"bind"` will make them available for rebinding in `[remap]` and `[commands]`, `"cursor"` will use them to move your mouse cursor, `"scroll"` will use them to scroll, `"disabled"` will disable them.
+`"bind"` will make them available for rebinding in `[remap]`, `"cursor"` will use them to move your mouse cursor, `"scroll"` will use them to scroll, `"disabled"` will disable them.
 #### `LSTICK_SENSITIVITY` and `RSTICK_SENSITIVITY`
 Set the sensitivity of your left and right analog sticks when using them to scroll or move your cursor.\
 Lower value is higher sensitivity, minimum `"1"`, suggested `"6"`. If this is set to `"0"` or if it's not set, cursor movement and scroll will be disabled.

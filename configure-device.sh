@@ -88,12 +88,6 @@ create_basic_config() {
 # Key combinations (hold first key, press second):
 # KEY_LEFTALT = { "KEY_TAB" = "KEY_RIGHTMETA" }  # Alt+Tab -> Windows key
 
-[bindings.commands]
-# Execute shell commands on key press:
-# KEY_VOLUMEUP = "amixer set Master 5%+"
-# KEY_VOLUMEDOWN = "amixer set Master 5%-"
-# KEY_PRINT = "gnome-screenshot"
-
 [settings]
 # Optional settings:
 LAYOUT_SWITCHER = "KEY_SCROLLLOCK"           # Key to switch between layouts
