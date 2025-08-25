@@ -12,7 +12,7 @@ pub enum Action {
   Release(u16),
 }
 
-/// Thread-local queue for Ruby callbacks
+// Thread-local queue for Ruby callbacks
 thread_local! {
   static ACTIONS: RefCell<Vec<Action>> = RefCell::new(Vec::new());
 }

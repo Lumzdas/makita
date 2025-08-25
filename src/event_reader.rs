@@ -1,6 +1,6 @@
 use crate::active_client::*;
 use crate::config::{parse_modifiers, Associations, Axis, Cursor, Event, Relative, Scroll};
-use crate::ruby_runtime::{RubyService, RubyEvent, Action, Response};
+use crate::ruby_runtime::{RubyService, RubyEvent, Action};
 use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
@@ -191,17 +191,15 @@ impl EventReader {
   }
 
   pub async fn start(&self) {
-    println!(
-      "{:?} detected, reading events.\n",
-      self.current_config.lock().await.name
-    );
+    println!("{:?} detected, reading events.\n", self.current_config.lock().await.name);
+
     tokio::join!(
-            self.event_loop(),
-            self.cursor_loop(),
-            self.scroll_loop(),
-            self.key_cursor_loop(),
-            self.key_scroll_loop()
-        );
+      self.event_loop(),
+      self.loop_2d("cursor", self.settings.invert_cursor_axis, 0, 1),
+      self.loop_2d("scroll", self.settings.invert_scroll_axis, 12, 11),
+      self.key_loop_2d(&self.settings.cursor, &self.cursor_movement, 0, 1),
+      self.key_loop_2d(&self.settings.scroll, &self.scroll_movement, 12, 11),
+    );
   }
 
   pub async fn event_loop(&self) {
@@ -224,6 +222,7 @@ impl EventReader {
         }
       }
     }
+
     while let Some(Ok(event)) = stream.next().await {
       match (
         event.event_type(),
@@ -578,6 +577,7 @@ impl EventReader {
       self.current_config.lock().await.name
     );
   }
+
   async fn convert_event(
     &self,
     default_event: InputEvent,
@@ -936,183 +936,82 @@ impl EventReader {
     })
   }
 
-  // TODO: parametrise
-  pub async fn cursor_loop(&self) {
-    let (cursor, sensitivity, activation_modifiers) =
-      if self.settings.lstick.function.as_str() == "cursor" {
-        (
-          "left",
-          self.settings.lstick.sensitivity,
-          self.settings.lstick.activation_modifiers.clone(),
-        )
-      } else if self.settings.rstick.function.as_str() == "cursor" {
-        (
-          "right",
-          self.settings.rstick.sensitivity,
-          self.settings.rstick.activation_modifiers.clone(),
-        )
+  async fn loop_2d(&self, subject: &str, invert_axis: bool, event_x_id: u16, event_y_id: u16) {
+    let (direction, sensitivity, activation_modifiers) =
+      if self.settings.lstick.function.as_str() == subject {
+        ("left", self.settings.lstick.sensitivity, &self.settings.lstick.activation_modifiers)
+      } else if self.settings.rstick.function.as_str() == subject {
+        ("right", self.settings.rstick.sensitivity, &self.settings.rstick.activation_modifiers)
       } else {
-        ("disabled", 0, vec![])
+        ("disabled", 0, &vec![])
       };
 
     if sensitivity != 0 {
       while *self.device_is_connected.lock().await {
-        {
-          let stick_position = if cursor == "left" {
-            self.lstick_position.lock().await
-          } else if cursor == "right" {
-            self.rstick_position.lock().await
-          } else {
-            break;
-          };
-          if stick_position[0] != 0 || stick_position[1] != 0 {
-            let modifiers = self.modifiers.lock().await;
-            if activation_modifiers.len() == 0 || activation_modifiers == *modifiers {
-              let (x_coord, y_coord) = if self.settings.invert_cursor_axis {
-                (-stick_position[0], -stick_position[1])
-              } else {
-                (stick_position[0], stick_position[1])
-              };
-              let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 0, x_coord);
-              let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 1, y_coord);
-              let mut virt_dev = self.virt_dev.lock().await;
-              virt_dev.axis.emit(&[virtual_event_x]).unwrap();
-              virt_dev.axis.emit(&[virtual_event_y]).unwrap();
-            }
-          }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(sensitivity)).await;
-      }
-    }
-  }
-
-  pub async fn scroll_loop(&self) {
-    let (scroll, sensitivity, activation_modifiers) =
-      if self.settings.lstick.function.as_str() == "scroll" {
-        (
-          "left",
-          self.settings.lstick.sensitivity,
-          self.settings.lstick.activation_modifiers.clone(),
-        )
-      } else if self.settings.rstick.function.as_str() == "scroll" {
-        (
-          "right",
-          self.settings.rstick.sensitivity,
-          self.settings.rstick.activation_modifiers.clone(),
-        )
-      } else {
-        ("disabled", 0, vec![])
-      };
-    if sensitivity != 0 {
-      while *self.device_is_connected.lock().await {
-        {
-          let stick_position = if scroll == "left" {
-            self.lstick_position.lock().await
-          } else if scroll == "right" {
-            self.rstick_position.lock().await
-          } else {
-            break;
-          };
-          if stick_position[0] != 0 || stick_position[1] != 0 {
-            let modifiers = self.modifiers.lock().await;
-            if activation_modifiers.len() == 0 || activation_modifiers == *modifiers {
-              let (x_coord, y_coord) = if self.settings.invert_scroll_axis {
-                (-stick_position[0], -stick_position[1])
-              } else {
-                (stick_position[0], stick_position[1])
-              };
-              let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 12, x_coord);
-              let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 11, y_coord);
-              let mut virt_dev = self.virt_dev.lock().await;
-              virt_dev.axis.emit(&[virtual_event_x]).unwrap();
-              virt_dev.axis.emit(&[virtual_event_y]).unwrap();
-            }
-          }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(sensitivity)).await;
-      }
-    } else {
-      return;
-    }
-  }
-
-  // TODO: parametrise
-  pub async fn key_cursor_loop(&self) {
-    let (speed, acceleration, mut current_speed) = (
-      if self.settings.cursor.speed == 0 {
-        return;
-      } else {
-        self.settings.cursor.speed
-      },
-      if self.settings.cursor.acceleration.abs() > 1.0 {
-        1.0
-      } else {
-        self.settings.cursor.acceleration.abs()
-      },
-      self.settings.cursor.speed as f32,
-    );
-    while *self.device_is_connected.lock().await {
-      {
-        let cursor_movement = self.cursor_movement.lock().await;
-        if *cursor_movement == (0, 0) {
-          current_speed = 0.0
+        let stick_position = if direction == "left" {
+          self.lstick_position.lock().await
+        } else if direction == "right" {
+          self.rstick_position.lock().await
         } else {
-          current_speed += speed as f32 * acceleration / 10.0;
-          if current_speed > speed as f32 {
-            current_speed = speed as f32
-          }
-          if cursor_movement.0 != 0 {
+          break;
+        };
+        if stick_position[0] != 0 || stick_position[1] != 0 {
+          let modifiers = self.modifiers.lock().await;
+          if activation_modifiers.len() == 0 || *activation_modifiers == *modifiers {
+            let (x_coord, y_coord) = if invert_axis {
+              (-stick_position[0], -stick_position[1])
+            } else {
+              (stick_position[0], stick_position[1])
+            };
+            let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_x_id, x_coord);
+            let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_y_id, y_coord);
             let mut virt_dev = self.virt_dev.lock().await;
-            let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 0, cursor_movement.0 * current_speed as i32);
             virt_dev.axis.emit(&[virtual_event_x]).unwrap();
-          }
-          if cursor_movement.1 != 0 {
-            let mut virt_dev = self.virt_dev.lock().await;
-            let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 1, cursor_movement.1 * current_speed as i32);
             virt_dev.axis.emit(&[virtual_event_y]).unwrap();
           }
         }
+        tokio::time::sleep(std::time::Duration::from_millis(sensitivity)).await;
       }
-      tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
   }
 
-  pub async fn key_scroll_loop(&self) {
+  async fn key_loop_2d(&self, subject_settings: &Movement, movement: &Arc<Mutex<(i32, i32)>>, event_x_id: u16, event_y_id: u16) {
     let (speed, acceleration, mut current_speed) = (
-      if self.settings.scroll.speed == 0 {
+      if subject_settings.speed == 0 {
         return;
       } else {
-        self.settings.scroll.speed
+        subject_settings.speed
       },
-      if self.settings.scroll.acceleration.abs() > 1.0 {
+      if subject_settings.acceleration.abs() > 1.0 {
         1.0
       } else {
-        self.settings.scroll.acceleration.abs()
+        subject_settings.acceleration.abs()
       },
-      self.settings.scroll.speed as f32,
+      subject_settings.speed as f32,
     );
+
     while *self.device_is_connected.lock().await {
-      {
-        let scroll_movement = self.scroll_movement.lock().await;
-        if *scroll_movement == (0, 0) {
-          current_speed = 0.0
-        } else {
-          current_speed += speed as f32 * acceleration / 10.0;
-          if current_speed > speed as f32 {
-            current_speed = speed as f32
-          }
+      let locked_movement = movement.lock().await;
+      if *locked_movement == (0, 0) {
+        current_speed = 0.0
+      } else {
+        current_speed += speed as f32 * acceleration / 10.0;
+        if current_speed > speed as f32 {
+          current_speed = speed as f32
+        }
+        if locked_movement.0 != 0 {
           let mut virt_dev = self.virt_dev.lock().await;
-          if scroll_movement.0 != 0 {
-            let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, 12, scroll_movement.0 * current_speed as i32);
-            virt_dev.axis.emit(&[virtual_event_x]).unwrap();
-          }
-          if scroll_movement.1 != 0 {
-            let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, 11, scroll_movement.1 * current_speed as i32);
-            virt_dev.axis.emit(&[virtual_event_y]).unwrap();
-          }
+          let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_x_id, locked_movement.0 * current_speed as i32);
+          virt_dev.axis.emit(&[virtual_event_x]).unwrap();
+        }
+        if locked_movement.1 != 0 {
+          let mut virt_dev = self.virt_dev.lock().await;
+          let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_y_id, locked_movement.1 * current_speed as i32);
+          virt_dev.axis.emit(&[virtual_event_y]).unwrap();
         }
       }
-      tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
+
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
   }
 }
