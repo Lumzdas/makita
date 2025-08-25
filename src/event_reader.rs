@@ -304,18 +304,31 @@ impl EventReader {
             notify_layout_switch,
         };
 
-        // Initialize Ruby service
+        // Initialize Ruby service and load scripts from config
         let ruby_service = {
             let service = RubyService::new();
-            if let Ok(path) = std::env::var("MAKITA_RUBY_SCRIPT") {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    println!("Loading Ruby script from: {}", path);
-                    service.set_script(content);
-                    Some(service)
-                } else {
-                    println!("Warning: failed to read MAKITA_RUBY_SCRIPT {}.", path);
-                    Some(service)
+            let mut has_scripts = false;
+
+            // Load all Ruby scripts from all configs
+            for cfg in &config {
+                for (_event, modifier_map) in &cfg.bindings.rubies {
+                    for (_modifiers, script_name) in modifier_map {
+                        if let Ok(ruby_scripts_path) = std::env::var("MAKITA_RUBY_SCRIPTS") {
+                            let script_path = format!("{}/{}.rb", ruby_scripts_path, script_name);
+                            service.load_script(script_name.clone(), script_path);
+                            has_scripts = true;
+                        } else {
+                            // Default to examples/ruby_scripts if MAKITA_RUBY_SCRIPTS not set
+                            let script_path = format!("examples/ruby_scripts/{}.rb", script_name);
+                            service.load_script(script_name.clone(), script_path);
+                            has_scripts = true;
+                        }
+                    }
                 }
+            }
+
+            if has_scripts {
+                Some(service)
             } else {
                 None
             }
@@ -1017,45 +1030,52 @@ impl EventReader {
 
         // Try Ruby script execution first
         if let Some(ruby) = &self.ruby_service {
-            let ev = RubyEvent {
-                key_code: match event {
-                    Event::Key(k) => Some(k.code()),
-                    _ => None,
-                },
-                value,
-            };
-            let resp = ruby.call(ev);
+            let config = self.current_config.lock().await;
+            let modifiers = self.modifiers.lock().await.clone();
 
-            // Execute actions from Ruby
-            if !resp.actions.is_empty() {
-                let mut virt_dev = self.virt_dev.lock().await;
-                for action in resp.actions {
-                    match action {
-                        Action::Press(code) => {
-                            let k = evdev::Key::new(code);
-                            let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
-                            let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
-                            virt_dev.keys.emit(&[press_event]).unwrap();
-                            virt_dev.keys.emit(&[release_event]).unwrap();
-                        }
-                        Action::PressDown(codes) => {
-                            for code in codes {
-                                let k = evdev::Key::new(code);
-                                let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
-                                virt_dev.keys.emit(&[press_event]).unwrap();
+            if let Some(map) = config.bindings.rubies.get(&event) {
+                if let Some(script_name) = map.get(&modifiers) {
+                    let ev = RubyEvent {
+                        key_code: match event {
+                            Event::Key(k) => Some(k.code()),
+                            _ => None,
+                        },
+                        value,
+                    };
+                    let resp = ruby.call_script(script_name.clone(), ev);
+
+                    // Execute actions from Ruby
+                    if !resp.actions.is_empty() {
+                        let mut virt_dev = self.virt_dev.lock().await;
+                        for action in resp.actions {
+                            match action {
+                                Action::Press(code) => {
+                                    let k = evdev::Key::new(code);
+                                    let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
+                                    let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
+                                    virt_dev.keys.emit(&[press_event]).unwrap();
+                                    virt_dev.keys.emit(&[release_event]).unwrap();
+                                }
+                                Action::PressDown(codes) => {
+                                    for code in codes {
+                                        let k = evdev::Key::new(code);
+                                        let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
+                                        virt_dev.keys.emit(&[press_event]).unwrap();
+                                    }
+                                }
+                                Action::Release(code) => {
+                                    let k = evdev::Key::new(code);
+                                    let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
+                                    virt_dev.keys.emit(&[release_event]).unwrap();
+                                }
                             }
                         }
-                        Action::Release(code) => {
-                            let k = evdev::Key::new(code);
-                            let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
-                            virt_dev.keys.emit(&[release_event]).unwrap();
-                        }
+                    }
+
+                    if resp.consume {
+                        return;
                     }
                 }
-            }
-
-            if resp.consume {
-                return;
             }
         }
 

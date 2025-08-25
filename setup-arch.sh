@@ -47,15 +47,15 @@ install_dependencies() {
     pacman -Sy --noconfirm
 
     # Install base dependencies
-    pacman -S --needed --noconfirm \
-        rust \
-        cargo \
-        git \
-        clang \
-        ruby \
-        base-devel \
-        systemd \
-        udev
+#    pacman -S --needed --noconfirm \
+#        rust \
+#        cargo \
+#        git \
+#        clang \
+#        ruby \
+#        base-devel \
+#        systemd \
+#        udev
 
     print_success "System dependencies installed"
 }

@@ -1,0 +1,19 @@
+# SAMPLE CONFIG FILE DEMONSTRATING RUBY SCRIPT INTEGRATION
+# Put this in ~/.config/makita and rename it to the exact name of your device
+# Set MAKITA_RUBY_SCRIPTS environment variable to point to your Ruby scripts directory
+# or place scripts in examples/ruby_scripts/ by default
+
+[rubies]
+# Examples of Key => Ruby script name (without .rb extension)
+KEY_CAPSLOCK = "remap_to_esc"           # Remap caps lock to escape
+KEY_F1 = "eat_input"                    # Consume F1 key presses
+KEY_F2 = "propagate_input"              # Pass F2 through normally
+KEY_F3 = "alt_tab_combo"                # Generate Alt+Tab combo
+
+# Examples with modifiers
+KEY_LEFTCTRL-KEY_F1 = "eat_input"       # Ctrl+F1 consumed
+KEY_LEFTSHIFT-KEY_F2 = "alt_tab_combo"  # Shift+F2 generates Alt+Tab
+
+[settings]
+# Optional: Set custom Ruby scripts directory
+# export MAKITA_RUBY_SCRIPTS="/path/to/your/scripts"

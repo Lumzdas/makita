@@ -112,6 +112,7 @@ pub struct Bindings {
     pub remap: HashMap<Event, HashMap<Vec<Event>, Vec<Key>>>,
     pub commands: HashMap<Event, HashMap<Vec<Event>, Vec<String>>>,
     pub movements: HashMap<Event, HashMap<Vec<Event>, Relative>>,
+    pub rubies: HashMap<Event, HashMap<Vec<Event>, String>>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -131,6 +132,8 @@ pub struct RawConfig {
     pub movements: HashMap<String, String>,
     #[serde(default)]
     pub settings: HashMap<String, String>,
+    #[serde(default)]
+    pub rubies: HashMap<String, String>,
 }
 
 impl RawConfig {
@@ -146,11 +149,13 @@ impl RawConfig {
         let commands = raw_config.commands;
         let movements = raw_config.movements;
         let settings = raw_config.settings;
+        let rubies = raw_config.rubies;
         Self {
             remap,
             commands,
             movements,
             settings,
+            rubies,
         }
     }
 }
@@ -195,6 +200,7 @@ fn parse_raw_config(raw_config: RawConfig) -> (Bindings, HashMap<String, String>
     let commands: HashMap<String, Vec<String>> = raw_config.commands;
     let movements: HashMap<String, String> = raw_config.movements;
     let settings: HashMap<String, String> = raw_config.settings;
+    let rubies: HashMap<String, String> = raw_config.rubies;
     let mut bindings: Bindings = Default::default();
     let default_modifiers = vec![
         Event::Key(Key::KEY_LEFTSHIFT),
@@ -476,6 +482,86 @@ fn parse_raw_config(raw_config: RawConfig) -> (Bindings, HashMap<String, String>
                             Relative::from_str(output.as_str())
                                 .expect("Invalid movement in [movements]."),
                         );
+                }
+            }
+        }
+    }
+
+    for (input, output) in rubies.clone() {
+        if let Some((mods, event)) = input.rsplit_once("-") {
+            let str_modifiers = mods.split("-").collect::<Vec<&str>>();
+            let mut modifiers: Vec<Event> = Vec::new();
+            for event in str_modifiers.clone() {
+                if let Ok(axis) = Axis::from_str(event) {
+                    modifiers.push(Event::Axis(axis));
+                } else if let Ok(key) = Key::from_str(event) {
+                    modifiers.push(Event::Key(key));
+                }
+            }
+            modifiers.sort();
+            modifiers.dedup();
+            for modifier in &modifiers {
+                if !mapped_modifiers.default.contains(&modifier) {
+                    mapped_modifiers.custom.push(modifier.clone());
+                }
+            }
+            if str_modifiers[0] == "" {
+                modifiers.push(Event::Hold);
+            }
+            if let Ok(event) = Axis::from_str(event) {
+                if !bindings.rubies.contains_key(&Event::Axis(event)) {
+                    bindings.rubies.insert(
+                        Event::Axis(event),
+                        HashMap::from([(modifiers, output)]),
+                    );
+                } else {
+                    bindings
+                        .rubies
+                        .get_mut(&Event::Axis(event))
+                        .unwrap()
+                        .insert(modifiers, output);
+                }
+            } else if let Ok(event) = Key::from_str(event) {
+                if !bindings.rubies.contains_key(&Event::Key(event)) {
+                    bindings.rubies.insert(
+                        Event::Key(event),
+                        HashMap::from([(modifiers, output)]),
+                    );
+                } else {
+                    bindings
+                        .rubies
+                        .get_mut(&Event::Key(event))
+                        .unwrap()
+                        .insert(modifiers, output);
+                }
+            }
+        } else {
+            let modifiers: Vec<Event> = Vec::new();
+            if let Ok(event) = Axis::from_str(input.as_str()) {
+                if !bindings.rubies.contains_key(&Event::Axis(event)) {
+                    bindings.rubies.insert(
+                        Event::Axis(event),
+                        HashMap::from([(modifiers, output)]),
+                    );
+                } else {
+                    bindings
+                        .rubies
+                        .get_mut(&Event::Axis(event))
+                        .unwrap()
+                        .insert(modifiers, output);
+                }
+            } else if let Ok(event) = Key::from_str(input.as_str()) {
+                if !bindings.rubies.contains_key(&Event::Key(event)) {
+                    bindings.rubies.insert(
+                        Event::Key(event),
+                        HashMap::from([(modifiers, output)]),
+                    );
+                } else {
+                    bindings
+                        .rubies
+                        .get_mut(&Event::Key(event))
+                        .unwrap()
+                        .insert(modifiers, output);
                 }
             }
         }

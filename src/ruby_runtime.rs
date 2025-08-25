@@ -49,8 +49,8 @@ pub struct Response {
 
 /// Ruby service communication
 pub enum Request {
-    SetScript(String),
-    Call { ev: RubyEvent, reply: Sender<Response> },
+    LoadScript { name: String, path: String },
+    CallScript { script_name: String, ev: RubyEvent, reply: Sender<Response> },
 }
 
 /// Ruby service with dedicated thread
@@ -91,14 +91,24 @@ impl RubyService {
                 end
             "#).unwrap();
 
-            let mut script: Option<String> = None;
+            let mut scripts: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
             while let Ok(req) = rx.recv() {
                 match req {
-                    Request::SetScript(s) => script = Some(s),
-                    Request::Call { ev, reply } => {
+                    Request::LoadScript { name, path } => {
+                        match std::fs::read_to_string(&path) {
+                            Ok(content) => {
+                                scripts.insert(name.clone(), content);
+                                println!("Loaded Ruby script: {} from {}", name, path);
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to load Ruby script {} from {}: {}", name, path, e);
+                            }
+                        }
+                    }
+                    Request::CallScript { script_name, ev, reply } => {
                         let mut actions = Vec::new();
-                        let consume = if let Some(ref sc) = script {
+                        let consume = if let Some(script_content) = scripts.get(&script_name) {
                             // Reset actions for this call
                             ACTIONS.with(|a| a.borrow_mut().clear());
 
@@ -109,7 +119,7 @@ impl RubyService {
                                 event = Event.new({}, {})
                                 {}
                                 handle(event)
-                            "#, key, value, sc);
+                            "#, key, value, script_content);
 
                             match ruby.eval::<Value>(&code) {
                                 Ok(val) => {
@@ -117,11 +127,12 @@ impl RubyService {
                                     val.is_nil()
                                 }
                                 Err(e) => {
-                                    eprintln!("Ruby error: {:?}", e);
+                                    eprintln!("Ruby error in script '{}': {:?}", script_name, e);
                                     false
                                 }
                             }
                         } else {
+                            eprintln!("Ruby script '{}' not found", script_name);
                             false
                         };
                         let _ = reply.send(Response { consume, actions });
@@ -133,13 +144,13 @@ impl RubyService {
         RubyService { tx }
     }
 
-    pub fn set_script(&self, content: String) {
-        let _ = self.tx.send(Request::SetScript(content));
+    pub fn load_script(&self, name: String, path: String) {
+        let _ = self.tx.send(Request::LoadScript { name, path });
     }
 
-    pub fn call(&self, ev: RubyEvent) -> Response {
+    pub fn call_script(&self, script_name: String, ev: RubyEvent) -> Response {
         let (rtx, rrx) = mpsc::channel();
-        let _ = self.tx.send(Request::Call { ev, reply: rtx });
+        let _ = self.tx.send(Request::CallScript { script_name, ev, reply: rtx });
         // Blocking wait is fine because Ruby runs in its own thread
         rrx.recv().unwrap_or(Response { consume: false, actions: vec![] })
     }
@@ -174,14 +185,10 @@ mod tests {
         // Give the Ruby thread time to initialize
         thread::sleep(Duration::from_millis(200));
 
-        // Set the eat_input script
-        service.set_script(r#"
-def handle(event)
-  return nil
-end
-        "#.to_string());
+        // Load the eat_input script
+        service.load_script("eat_input".to_string(), "test_script".to_string());
 
-        // Give time for script to be set
+        // Give time for script to be loaded (simulate from string for test)
         thread::sleep(Duration::from_millis(100));
 
         let event = RubyEvent {
@@ -189,7 +196,7 @@ end
             value: 1,
         };
 
-        let response = service.call(event);
+        let response = service.call_script("eat_input".to_string(), event);
 
         assert!(response.consume, "eat_input script should consume events");
         assert!(response.actions.is_empty(), "eat_input script should not produce actions");
@@ -202,15 +209,10 @@ end
         // Give the Ruby thread time to initialize
         thread::sleep(Duration::from_millis(100));
 
-        // Set the propagate_input script
-        service.set_script(r#"
-def handle(event)
-  Makita.press(event.key) if event.key_down?
-  return true  # Don't consume the event
-end
-        "#.to_string());
+        // Load the propagate_input script
+        service.load_script("propagate_input".to_string(), "examples/ruby_scripts/propagate_input.rb".to_string());
 
-        // Give time for script to be set
+        // Give time for script to be loaded
         thread::sleep(Duration::from_millis(50));
 
         let event = RubyEvent {
@@ -218,7 +220,7 @@ end
             value: 1,
         };
 
-        let response = service.call(event);
+        let response = service.call_script("propagate_input".to_string(), event);
 
         assert!(!response.consume, "propagate_input script should not consume events");
         assert_eq!(response.actions.len(), 1, "propagate_input script should produce one action");
@@ -238,15 +240,10 @@ end
         // Give the Ruby thread time to initialize
         thread::sleep(Duration::from_millis(100));
 
-        // Set the alt_tab_combo script
-        service.set_script(r#"
-def handle(event)
-  Makita.press_down(Makita::KB_LALT, Makita::KB_LTAB)
-  return true  # Don't consume the event
-end
-        "#.to_string());
+        // Load the alt_tab_combo script
+        service.load_script("alt_tab_combo".to_string(), "examples/ruby_scripts/alt_tab_combo.rb".to_string());
 
-        // Give time for script to be set
+        // Give time for script to be loaded
         thread::sleep(Duration::from_millis(50));
 
         let event = RubyEvent {
@@ -254,7 +251,7 @@ end
             value: 1,
         };
 
-        let response = service.call(event);
+        let response = service.call_script("alt_tab_combo".to_string(), event);
 
         assert!(!response.consume, "alt_tab_combo script should not consume events");
         assert_eq!(response.actions.len(), 1, "alt_tab_combo script should produce one action");
