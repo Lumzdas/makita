@@ -621,6 +621,9 @@ impl EventReader {
       // Check if there's a Ruby script configured for this event
       if let Some(map) = config.bindings.rubies.get(&event) {
         if map.get(&modifiers).is_some() {
+          println!("Sending event to Ruby: {:?}", event);
+          println!("event_type: {:?}, code: {}, value: {}", default_event.event_type(), default_event.code(), value);
+          println!("script to run: {}", map.get(&modifiers).unwrap());
           // Convert to PhysicalEvent and send to Ruby process
           let physical_event = crate::ruby_runtime::PhysicalEvent {
             event_type: default_event.event_type().0,

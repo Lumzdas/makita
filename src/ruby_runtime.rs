@@ -3,9 +3,12 @@ use std::thread;
 use std::process::{Command, Stdio, Child};
 use std::io::{BufRead, BufReader, Write, BufWriter};
 use std::sync::{Arc, Mutex};
-use evdev::{InputEvent, Key};
+use evdev::InputEvent;
 use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use nix::unistd::{Uid, Gid, User, setuid, setgid, getuid};
+use std::env;
+use std::os::unix::process::CommandExt;
 
 /// Physical input events from hardware
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -84,6 +87,18 @@ pub enum ScriptCommand {
   LoadEmbeddedScript { name: String },
 }
 
+/// Determine the target user for Ruby script execution
+fn get_target_user() -> Result<(Uid, Gid), Box<dyn std::error::Error>> {
+  // If running as root, try to get the original user from SUDO_USER
+  if let Ok(sudo_user) = env::var("SUDO_USER") {
+    if let Ok(Some(user)) = User::from_name(&sudo_user) {
+      return Ok((user.uid, user.gid));
+    }
+  }
+
+  return Ok((getuid(), nix::unistd::getgid()));
+}
+
 /// Legacy compatibility types for existing code
 #[derive(Clone, Debug)]
 pub enum Action {
@@ -146,20 +161,46 @@ impl RubyService {
     let temp_file = std::env::temp_dir().join("makita_event_loop.rb");
     std::fs::write(&temp_file, EVENT_LOOP_SCRIPT)?;
 
-    // Spawn Ruby process with the temporary script file
-    let mut child = Command::new("ruby")
-      .arg(&temp_file)
-      .stdin(Stdio::piped())
-      .stdout(Stdio::piped())
-      .stderr(Stdio::piped())
-      .spawn()?;
+    // Get target user for privilege dropping
+    let (target_uid, target_gid) = get_target_user()?;
+
+    // Spawn Ruby process with the temporary script file and drop privileges
+    let mut child = unsafe {
+      Command::new("ruby")
+        .arg(&temp_file)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .pre_exec(move || {
+          // Drop privileges before executing Ruby
+          if getuid().is_root() {
+            // Set supplementary groups first
+            if let Err(e) = nix::unistd::setgroups(&[target_gid]) {
+              eprintln!("Failed to set supplementary groups: {}", e);
+            }
+            // Set group ID
+            if let Err(e) = setgid(target_gid) {
+              eprintln!("Failed to set GID: {}", e);
+              return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Failed to drop group privileges"));
+            }
+            // Set user ID (must be last)
+            if let Err(e) = setuid(target_uid) {
+              eprintln!("Failed to set UID: {}", e);
+              return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Failed to drop user privileges"));
+            }
+            println!("Ruby process will run as UID {} GID {}", target_uid, target_gid);
+          }
+          Ok(())
+        })
+        .spawn()?
+    };
 
     let stdin = child.stdin.take().ok_or("Failed to get Ruby process stdin")?;
     let stdout = child.stdout.take().ok_or("Failed to get Ruby process stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to get Ruby process stderr")?;
 
     let stdin = Arc::new(Mutex::new(BufWriter::new(stdin)));
-    let stdin_clone = Arc::clone(&stdin);
+    let stdin_clone: Arc<Mutex<BufWriter<std::process::ChildStdin>>> = Arc::clone(&stdin);
 
     // Thread to send events to Ruby process
     thread::spawn(move || {
@@ -173,7 +214,7 @@ impl RubyService {
     });
 
     // Thread to handle script loading commands
-    let stdin_clone2 = Arc::clone(&stdin);
+    let stdin_clone2: Arc<Mutex<BufWriter<std::process::ChildStdin>>> = Arc::clone(&stdin);
     thread::spawn(move || {
       while let Ok(command) = script_receiver.recv() {
         if let Ok(mut writer) = stdin_clone2.lock() {
