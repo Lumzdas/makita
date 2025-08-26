@@ -232,13 +232,13 @@ main() {
     echo
 
     check_root
-    install_dependencies
-    setup_rust
+#    install_dependencies
+#    setup_rust
     build_makita
     install_binary_and_configs
-    setup_systemd_service
-    setup_example_configs
-    print_instructions
+#    setup_systemd_service
+#    setup_example_configs
+#    print_instructions
 }
 
 main "$@"

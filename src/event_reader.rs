@@ -147,7 +147,38 @@ impl EventReader {
 
     // Initialize Ruby service and load scripts from config
     let ruby_service = {
-      let service = RubyService::new();
+      // Clone references for the state handler closure
+      let modifiers_ref = Arc::clone(&modifiers);
+      let device_connected_ref = Arc::clone(&device_is_connected);
+
+      let service = RubyService::new(move |query| {
+        use crate::ruby_runtime::{StateQuery, StateResponse};
+        match query {
+          StateQuery::KeyState(key_code) => {
+            // For now, return false - could be enhanced to track actual key states
+            StateResponse::KeyState(false)
+          }
+          StateQuery::ModifierState => {
+            // Return current modifier keys
+            if let Ok(mods) = modifiers_ref.try_lock() {
+              let codes: Vec<u16> = mods.iter().map(|e| match e {
+                Event::Key(key) => key.code(),
+                _ => 0,
+              }).collect();
+              StateResponse::ModifierState(codes)
+            } else {
+              StateResponse::ModifierState(vec![])
+            }
+          }
+          StateQuery::DeviceConnected => {
+            if let Ok(connected) = device_connected_ref.try_lock() {
+              StateResponse::DeviceConnected(*connected)
+            } else {
+              StateResponse::DeviceConnected(false)
+            }
+          }
+        }
+      }).expect("Failed to create Ruby service");
       let mut has_scripts = false;
 
       // Load all Ruby scripts from all configs
@@ -156,11 +187,6 @@ impl EventReader {
           for (_modifiers, script_name) in modifier_map {
             if let Ok(ruby_scripts_path) = std::env::var("MAKITA_RUBY_SCRIPTS") {
               let script_path = format!("{}/{}.rb", ruby_scripts_path, script_name);
-              service.load_script(script_name.clone(), script_path);
-              has_scripts = true;
-            } else {
-              // Default to examples/ruby_scripts if MAKITA_RUBY_SCRIPTS not set
-              let script_path = format!("examples/ruby_scripts/{}.rb", script_name);
               service.load_script(script_name.clone(), script_path);
               has_scripts = true;
             }
@@ -587,51 +613,26 @@ impl EventReader {
   ) {
     if value == 1 { self.update_config().await; };
 
-    // Try Ruby script execution first
+    // Send physical event to Ruby for async processing
     if let Some(ruby) = &self.ruby_service {
       let config = self.current_config.lock().await;
       let modifiers = self.modifiers.lock().await.clone();
 
+      // Check if there's a Ruby script configured for this event
       if let Some(map) = config.bindings.rubies.get(&event) {
-        if let Some(script_name) = map.get(&modifiers) {
-          let ev = RubyEvent {
-            key_code: match event {
-              Event::Key(k) => Some(k.code()),
-              _ => None,
-            },
+        if map.get(&modifiers).is_some() {
+          // Convert to PhysicalEvent and send to Ruby process
+          let physical_event = crate::ruby_runtime::PhysicalEvent {
+            event_type: default_event.event_type().0,
+            code: default_event.code(),
             value,
+            timestamp_sec: default_event.timestamp().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+            timestamp_nsec: default_event.timestamp().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos(),
           };
-          let resp = ruby.call_script(script_name.clone(), ev);
 
-          // Execute actions from Ruby
-          if !resp.actions.is_empty() {
-            let mut virt_dev = self.virt_dev.lock().await;
-            for action in resp.actions {
-              match action {
-                Action::Press(code) => {
-                  let k = evdev::Key::new(code);
-                  let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
-                  let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
-                  virt_dev.keys.emit(&[press_event]).unwrap();
-                  virt_dev.keys.emit(&[release_event]).unwrap();
-                }
-                Action::PressDown(codes) => {
-                  for code in codes {
-                    let k = evdev::Key::new(code);
-                    let press_event = InputEvent::new_now(EventType::KEY, k.code(), 1);
-                    virt_dev.keys.emit(&[press_event]).unwrap();
-                  }
-                }
-                Action::Release(code) => {
-                  let k = evdev::Key::new(code);
-                  let release_event = InputEvent::new_now(EventType::KEY, k.code(), 0);
-                  virt_dev.keys.emit(&[release_event]).unwrap();
-                }
-              }
-            }
-          }
-
-          if resp.consume { return; }
+          // Send event asynchronously - Ruby will process it independently
+          let _ = ruby.send_event(physical_event);
+          return;
         }
       }
     }
@@ -639,56 +640,56 @@ impl EventReader {
     let config = self.current_config.lock().await;
     let modifiers = self.modifiers.lock().await.clone();
 
-    if let Some(map) = config.bindings.remap.get(&event) {
-      if let Some(event_list) = map.get(&modifiers) {
-        self.emit_event(
-          event_list,
-          value,
-          &modifiers,
-          &config,
-          modifiers.is_empty(),
-          !modifiers.is_empty(),
-        ).await;
-        if send_zero {
-          let modifiers = self.modifiers.lock().await.clone();
-          self.emit_event(
-            event_list,
-            0,
-            &modifiers,
-            &config,
-            modifiers.is_empty(),
-            !modifiers.is_empty(),
-          ).await;
-        }
-        return;
-      }
-      if let Some(event_list) = map.get(&vec![Event::Hold]) {
-        if !modifiers.is_empty() || self.settings.chain_only == false {
-          self.emit_event(event_list, value, &modifiers, &config, false, false).await;
-          return;
-        }
-      }
-      if let Some(map) = config.bindings.movements.get(&event) {
-        if let Some(movement) = map.get(&modifiers) {
-          if value <= 1 { self.emit_movement(movement, value).await; }
-          return;
-        };
-      }
-      if let Some(event_list) = map.get(&Vec::new()) {
-        self.emit_event(event_list, value, &modifiers, &config, true, false).await;
-        if send_zero {
-          let modifiers = self.modifiers.lock().await.clone();
-          self.emit_event(event_list, 0, &modifiers, &config, true, false).await;
-        }
-        return;
-      }
-    }
-    if let Some(map) = config.bindings.movements.get(&event) {
-      if let Some(movement) = map.get(&modifiers) {
-        if value <= 1 { self.emit_movement(movement, value).await; }
-        return;
-      };
-    }
+    // if let Some(map) = config.bindings.remap.get(&event) {
+    //   if let Some(event_list) = map.get(&modifiers) {
+    //     self.emit_event(
+    //       event_list,
+    //       value,
+    //       &modifiers,
+    //       &config,
+    //       modifiers.is_empty(),
+    //       !modifiers.is_empty(),
+    //     ).await;
+    //     if send_zero {
+    //       let modifiers = self.modifiers.lock().await.clone();
+    //       self.emit_event(
+    //         event_list,
+    //         0,
+    //         &modifiers,
+    //         &config,
+    //         modifiers.is_empty(),
+    //         !modifiers.is_empty(),
+    //       ).await;
+    //     }
+    //     return;
+    //   }
+    //   if let Some(event_list) = map.get(&vec![Event::Hold]) {
+    //     if !modifiers.is_empty() || self.settings.chain_only == false {
+    //       self.emit_event(event_list, value, &modifiers, &config, false, false).await;
+    //       return;
+    //     }
+    //   }
+    //   if let Some(map) = config.bindings.movements.get(&event) {
+    //     if let Some(movement) = map.get(&modifiers) {
+    //       if value <= 1 { self.emit_movement(movement, value).await; }
+    //       return;
+    //     };
+    //   }
+    //   if let Some(event_list) = map.get(&Vec::new()) {
+    //     self.emit_event(event_list, value, &modifiers, &config, true, false).await;
+    //     if send_zero {
+    //       let modifiers = self.modifiers.lock().await.clone();
+    //       self.emit_event(event_list, 0, &modifiers, &config, true, false).await;
+    //     }
+    //     return;
+    //   }
+    // }
+    // if let Some(map) = config.bindings.movements.get(&event) {
+    //   if let Some(movement) = map.get(&modifiers) {
+    //     if value <= 1 { self.emit_movement(movement, value).await; }
+    //     return;
+    //   };
+    // }
     self.emit_nonmapped_event(default_event, event, value, &modifiers, &config).await;
   }
 
