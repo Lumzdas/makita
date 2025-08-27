@@ -3,10 +3,11 @@ use crate::event_reader::EventReader;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
 use evdev::{Device, EventStream};
-use std::{env, path::Path, process::Command, sync::Arc};
+use std::{env, path::Path, process::Command, sync::Arc, sync::atomic::{AtomicBool, Ordering}};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
+use tokio::signal;
 
 #[derive(Debug, Default, Eq, PartialEq, Hash, Clone)]
 pub enum Client {
@@ -31,7 +32,8 @@ pub struct Environment {
 
 pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<JoinHandle<()>>) {
   let environment = set_environment();
-  launch_tasks(&config_files, &mut tasks, environment.clone());
+  let shutdown_signal = Arc::new(AtomicBool::new(false));
+  launch_tasks(&config_files, &mut tasks, environment.clone(), shutdown_signal.clone());
 
   let mut monitor = tokio_udev::AsyncMonitorSocket::new(
     tokio_udev::MonitorBuilder::new()
@@ -42,12 +44,41 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
       .unwrap(),
   ).unwrap();
 
-  while let Some(Ok(event)) = monitor.next().await {
-    if is_mapped(&event.device(), &config_files) {
-      println!("---------------------\n\nReinitializing...\n");
-      for task in &tasks { task.abort(); }
-      tasks.clear();
-      launch_tasks(&config_files, &mut tasks, environment.clone())
+  let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt()).expect("Failed to register SIGINT handler");
+
+  loop {
+    tokio::select! {
+      // Handle udev events
+      event = monitor.next() => {
+        match event {
+          Some(Ok(event)) => {
+            if is_mapped(&event.device(), &config_files) {
+              println!("---------------------\n\nReinitializing...\n");
+              for task in &tasks { task.abort(); }
+              tasks.clear();
+              launch_tasks(&config_files, &mut tasks, environment.clone(), shutdown_signal.clone())
+            }
+          }
+          Some(Err(e)) => {
+            eprintln!("Udev monitor error: {}", e);
+          }
+          None => {
+            println!("Udev monitor ended");
+            break;
+          }
+        }
+      }
+
+      _ = sigint.recv() => {
+        println!("\nReceived SIGINT, shutting down...");
+        shutdown_signal.store(true, Ordering::SeqCst);
+
+        println!("Waiting for tasks to complete...");
+        for task in tasks.drain(..) { let _ = task.await; }
+
+        println!("All tasks stopped. Exiting...");
+        break;
+      }
     }
   }
 }
@@ -56,6 +87,7 @@ pub fn launch_tasks(
   config_files: &Vec<Config>,
   tasks: &mut Vec<JoinHandle<()>>,
   environment: Environment,
+  shutdown_signal: Arc<AtomicBool>,
 ) {
   let modifiers: Arc<Mutex<Vec<Event>>> = Arc::new(Mutex::new(Default::default()));
   let modifier_was_activated: Arc<Mutex<bool>> = Arc::new(Mutex::new(true));
@@ -139,6 +171,7 @@ pub fn launch_tasks(
           modifiers.clone(),
           modifier_was_activated.clone(),
           environment.clone(),
+          shutdown_signal.clone(),
         );
         tasks.push(tokio::spawn(start_reader(reader)));
         devices_found += 1;

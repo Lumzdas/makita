@@ -13,6 +13,7 @@ use std::{
   process::{Command, Stdio},
   str::FromStr,
   sync::Arc,
+  sync::atomic::{AtomicBool, Ordering},
 };
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -59,6 +60,7 @@ pub struct EventReader {
   environment: Environment,
   settings: Settings,
   ruby_service: Option<MagnusRubyService>,
+  shutdown_signal: Arc<AtomicBool>,
 }
 
 impl EventReader {
@@ -69,6 +71,7 @@ impl EventReader {
     modifiers: Arc<Mutex<Vec<Event>>>,
     modifier_was_activated: Arc<Mutex<bool>>,
     environment: Environment,
+    shutdown_signal: Arc<AtomicBool>,
   ) -> Self {
     let mut position_vector: Vec<i32> = Vec::new();
     for i in [0, 0] {
@@ -225,6 +228,7 @@ impl EventReader {
       environment,
       settings,
       ruby_service,
+      shutdown_signal,
     }
   }
 
@@ -261,7 +265,29 @@ impl EventReader {
       }
     }
 
-    while let Some(Ok(event)) = stream.next().await {
+    loop {
+      // Check for shutdown signal
+      if self.shutdown_signal.load(Ordering::SeqCst) {
+        println!("EventReader received shutdown signal, stopping Ruby service...");
+        if let Some(ruby) = &self.ruby_service {
+          let _ = ruby.stop();
+        }
+        println!("EventReader shutting down.");
+        break;
+      }
+
+      // Process next event or break if stream ends
+      let event = match stream.next().await {
+        Some(Ok(event)) => event,
+        Some(Err(e)) => {
+          eprintln!("Error reading event: {}", e);
+          continue;
+        }
+        None => {
+          println!("Event stream ended");
+          break;
+        }
+      };
       match (
         event.event_type(),
         RelativeAxisType(event.code()),
