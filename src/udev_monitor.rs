@@ -125,22 +125,24 @@ pub fn launch_tasks(
 
     let event_device = device.0.as_path().to_str().unwrap().to_string();
     if config_list.len() != 0 {
-      let stream = Arc::new(Mutex::new(get_event_stream(
-        Path::new(&event_device),
-        config_list.clone(),
-      )));
-      let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
-      println!("Constructing reader for {}...", device.0.to_str().unwrap());
-      let reader = EventReader::new(
-        config_list.clone(),
-        virt_dev,
-        stream,
-        modifiers.clone(),
-        modifier_was_activated.clone(),
-        environment.clone(),
-      );
-      tasks.push(tokio::spawn(start_reader(reader)));
-      devices_found += 1;
+      if device.0.to_str().unwrap() == "/dev/input/event7" {
+        let stream = Arc::new(Mutex::new(get_event_stream(
+          Path::new(&event_device),
+          config_list.clone(),
+        )));
+        let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
+        println!("Constructing reader for {}...", device.0.to_str().unwrap());
+        let reader = EventReader::new(
+          config_list.clone(),
+          virt_dev,
+          stream,
+          modifiers.clone(),
+          modifier_was_activated.clone(),
+          environment.clone(),
+        );
+        tasks.push(tokio::spawn(start_reader(reader)));
+        devices_found += 1;
+      }
     }
   }
 

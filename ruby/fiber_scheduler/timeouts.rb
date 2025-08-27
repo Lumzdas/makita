@@ -1,5 +1,3 @@
-require_relative "timeout"
-
 class FiberScheduler
   class Timeouts
     attr_reader :timeouts

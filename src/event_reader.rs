@@ -1,6 +1,6 @@
 use crate::active_client::*;
 use crate::config::{parse_modifiers, Associations, Axis, Cursor, Event, Relative, Scroll};
-use crate::ruby_runtime::{RubyService};
+use crate::magnus_ruby_runtime::{MagnusRubyService};
 use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
@@ -58,7 +58,7 @@ pub struct EventReader {
   current_config: Arc<Mutex<Config>>,
   environment: Environment,
   settings: Settings,
-  ruby_service: Option<RubyService>,
+  ruby_service: Option<MagnusRubyService>,
 }
 
 impl EventReader {
@@ -148,11 +148,14 @@ impl EventReader {
     // Initialize Ruby service and load scripts from config
     let ruby_service = {
       // Clone references for the state handler closure
+      println!("Initializing Ruby service...");
       let modifiers_ref = Arc::clone(&modifiers);
+      println!("Modifiers reference cloned.");
       let device_connected_ref = Arc::clone(&device_is_connected);
+      println!("Device connection reference cloned.");
 
-      let service = RubyService::new(move |query| {
-        use crate::ruby_runtime::{StateQuery, StateResponse};
+      let service = MagnusRubyService::new(move |query| {
+        use crate::magnus_ruby_runtime::{StateQuery, StateResponse};
         match query {
           StateQuery::KeyState(key_code) => {
             // For now, return false - could be enhanced to track actual key states
@@ -186,15 +189,24 @@ impl EventReader {
         for (_event, modifier_map) in &cfg.bindings.rubies {
           for (_modifiers, script_name) in modifier_map {
             if let Ok(ruby_scripts_path) = std::env::var("MAKITA_RUBY_SCRIPTS") {
+              println!("Loading Ruby script: {}", script_name);
               let script_path = format!("{}/{}.rb", ruby_scripts_path, script_name);
-              service.load_script(script_name.clone(), script_path);
+              let _ = service.load_script(script_name.clone(), script_path);
               has_scripts = true;
             }
           }
         }
       }
 
-      if has_scripts { Some(service) } else { None }
+      // Start the Ruby event loop if we have scripts
+      if has_scripts {
+        println!("Starting Ruby event loop...");
+        service.start_event_loop().expect("Failed to start Ruby event loop");
+        println!("Ruby service initialized.");
+        Some(service)
+      } else {
+        None
+      }
     };
 
     Self {
@@ -623,8 +635,7 @@ impl EventReader {
         if map.get(&modifiers).is_some() {
           let script = map.get(&modifiers).unwrap();
           println!("Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
-          // Convert to PhysicalEvent and send to Ruby process
-          let physical_event = crate::ruby_runtime::PhysicalEvent {
+          let physical_event = crate::magnus_ruby_runtime::PhysicalEvent {
             script: script.to_string(),
             event_type: default_event.event_type().0,
             code: default_event.code(),
@@ -633,7 +644,6 @@ impl EventReader {
             timestamp_nsec: default_event.timestamp().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos(),
           };
 
-          // Send event asynchronously - Ruby will process it independently
           let _ = ruby.send_event(physical_event);
           return;
         }
@@ -643,56 +653,54 @@ impl EventReader {
     let config = self.current_config.lock().await;
     let modifiers = self.modifiers.lock().await.clone();
 
-    // if let Some(map) = config.bindings.remap.get(&event) {
-    //   if let Some(event_list) = map.get(&modifiers) {
-    //     self.emit_event(
-    //       event_list,
-    //       value,
-    //       &modifiers,
-    //       &config,
-    //       modifiers.is_empty(),
-    //       !modifiers.is_empty(),
-    //     ).await;
-    //     if send_zero {
-    //       let modifiers = self.modifiers.lock().await.clone();
-    //       self.emit_event(
-    //         event_list,
-    //         0,
-    //         &modifiers,
-    //         &config,
-    //         modifiers.is_empty(),
-    //         !modifiers.is_empty(),
-    //       ).await;
-    //     }
-    //     return;
-    //   }
-    //   if let Some(event_list) = map.get(&vec![Event::Hold]) {
-    //     if !modifiers.is_empty() || self.settings.chain_only == false {
-    //       self.emit_event(event_list, value, &modifiers, &config, false, false).await;
-    //       return;
-    //     }
-    //   }
-    //   if let Some(map) = config.bindings.movements.get(&event) {
-    //     if let Some(movement) = map.get(&modifiers) {
-    //       if value <= 1 { self.emit_movement(movement, value).await; }
-    //       return;
-    //     };
-    //   }
-    //   if let Some(event_list) = map.get(&Vec::new()) {
-    //     self.emit_event(event_list, value, &modifiers, &config, true, false).await;
-    //     if send_zero {
-    //       let modifiers = self.modifiers.lock().await.clone();
-    //       self.emit_event(event_list, 0, &modifiers, &config, true, false).await;
-    //     }
-    //     return;
-    //   }
-    // }
-    // if let Some(map) = config.bindings.movements.get(&event) {
-    //   if let Some(movement) = map.get(&modifiers) {
-    //     if value <= 1 { self.emit_movement(movement, value).await; }
-    //     return;
-    //   };
-    // }
+    if let Some(map) = config.bindings.remap.get(&event) {
+      if let Some(event_list) = map.get(&modifiers) {
+        self.emit_event(
+          event_list,
+          value,
+          &modifiers,
+          &config,
+          modifiers.is_empty(),
+          !modifiers.is_empty(),
+        ).await;
+        if send_zero {
+          let modifiers = self.modifiers.lock().await.clone();
+          self.emit_event(
+            event_list,
+            0,
+            &modifiers,
+            &config,
+            modifiers.is_empty(),
+            !modifiers.is_empty(),
+          ).await;
+        }
+        return;
+      }
+
+      if let Some(event_list) = map.get(&vec![Event::Hold]) {
+        if !modifiers.is_empty() || self.settings.chain_only == false {
+          self.emit_event(event_list, value, &modifiers, &config, false, false).await;
+          return;
+        }
+      }
+
+      if let Some(map) = config.bindings.movements.get(&event) {
+        if let Some(movement) = map.get(&modifiers) {
+          if value <= 1 { self.emit_movement(movement, value).await; }
+          return;
+        };
+      }
+
+      if let Some(event_list) = map.get(&Vec::new()) {
+        self.emit_event(event_list, value, &modifiers, &config, true, false).await;
+        if send_zero {
+          let modifiers = self.modifiers.lock().await.clone();
+          self.emit_event(event_list, 0, &modifiers, &config, true, false).await;
+        }
+        return;
+      }
+    }
+
     self.emit_nonmapped_event(default_event, event, value, &modifiers, &config).await;
   }
 

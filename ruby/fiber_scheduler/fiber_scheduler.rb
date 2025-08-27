@@ -1,7 +1,4 @@
 require "resolv"
-require_relative "compatibility"
-require_relative "selector"
-require_relative "timeouts"
 
 begin
   # Use io/event selector if available
