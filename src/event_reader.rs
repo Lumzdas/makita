@@ -1,6 +1,6 @@
 use crate::active_client::*;
 use crate::config::{parse_modifiers, Associations, Axis, Cursor, Event, Relative, Scroll};
-use crate::ruby_runtime::{RubyService, RubyEvent, Action};
+use crate::ruby_runtime::{RubyService};
 use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
@@ -621,11 +621,11 @@ impl EventReader {
       // Check if there's a Ruby script configured for this event
       if let Some(map) = config.bindings.rubies.get(&event) {
         if map.get(&modifiers).is_some() {
-          println!("Sending event to Ruby: {:?}", event);
-          println!("event_type: {:?}, code: {}, value: {}", default_event.event_type(), default_event.code(), value);
-          println!("script to run: {}", map.get(&modifiers).unwrap());
+          let script = map.get(&modifiers).unwrap();
+          println!("Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
           // Convert to PhysicalEvent and send to Ruby process
           let physical_event = crate::ruby_runtime::PhysicalEvent {
+            script: script.to_string(),
             event_type: default_event.event_type().0,
             code: default_event.code(),
             value,
@@ -816,11 +816,11 @@ impl EventReader {
     let mut modifier_was_activated = self.modifier_was_activated.lock().await;
     *modifier_was_activated = true;
     let (user, running_as_root) = if let Ok(sudo_user) = &self.environment.sudo_user {
-      (Option::Some(sudo_user), true)
+      (Some(sudo_user), true)
     } else if let Ok(user) = &self.environment.user {
-      (Option::Some(user), false)
+      (Some(user), false)
     } else {
-      (Option::None, false)
+      (None, false)
     };
     if let Some(user) = user {
       for command in command_list {
@@ -860,8 +860,8 @@ impl EventReader {
 
   async fn get_axis_value(&self, event: &InputEvent, deadzone: &i32) -> i32 {
     let distance_from_center: i32 = match self.settings.axis_16_bit {
-      false => (event.value() as i32 - 128) * 200,
-      _ => event.value() as i32,
+      false => (event.value() - 128) * 200,
+      _ => event.value(),
     };
     if distance_from_center.abs() <= deadzone * 200 {
       0

@@ -130,6 +130,7 @@ pub fn launch_tasks(
         config_list.clone(),
       )));
       let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
+      println!("Constructing reader for {}...", device.0.to_str().unwrap());
       let reader = EventReader::new(
         config_list.clone(),
         virt_dev,
@@ -139,7 +140,7 @@ pub fn launch_tasks(
         environment.clone(),
       );
       tasks.push(tokio::spawn(start_reader(reader)));
-      devices_found += 1
+      devices_found += 1;
     }
   }
 
