@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 enum RubyCommand {
   LoadScript { name: String, path: String },
   StartEventLoop,
-  Stop,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -112,22 +111,7 @@ impl MagnusRubyService {
             eprintln!("Failed to start event loop: {}", e);
           }
         }
-        RubyCommand::Stop => {
-          if let Err(e) = ruby.eval::<Value>("$makita_runtime.stop") {
-            eprintln!("Failed to stop runtime: {}", e);
-          }
-          break; // Exit the thread
-        }
       }
-    }
-
-    // Cleanup happens automatically when `cleanup` is dropped
-    drop(cleanup);
-
-    unsafe {
-      SYNTHETIC_SENDER = None;
-      STATE_HANDLER = None;
-      EVENT_QUEUE = None;
     }
   }
 
@@ -176,11 +160,6 @@ impl MagnusRubyService {
       }
     }
     events
-  }
-
-  pub fn stop(&self) -> Result<(), Box<dyn std::error::Error>> {
-    self.command_sender.send(RubyCommand::Stop)?;
-    Ok(())
   }
 }
 
@@ -250,10 +229,8 @@ fn ruby_get_events() -> Result<RArray, MagnusError> {
   unsafe {
     if let Some(queue) = &EVENT_QUEUE {
       if let Ok(mut queue) = queue.lock() {
-        // Drain all events from the queue
         let events: Vec<PhysicalEvent> = queue.drain(..).collect();
 
-        // Convert to Ruby array of hashes
         let ruby_array = RArray::new();
         for event in events {
           let hash = RHash::new();
@@ -273,18 +250,6 @@ fn ruby_get_events() -> Result<RArray, MagnusError> {
 
   // Return empty array if queue is not available or locked
   Ok(RArray::new())
-}
-
-impl Drop for MagnusRubyService {
-  fn drop(&mut self) {
-    let _ = self.stop();
-
-    unsafe {
-      SYNTHETIC_SENDER = None;
-      STATE_HANDLER = None;
-      EVENT_QUEUE = None;
-    }
-  }
 }
 
 #[cfg(test)]
@@ -329,10 +294,6 @@ mod tests {
 
     // Test event loop start
     let result = service.start_event_loop();
-    assert!(result.is_ok());
-
-    // Test stop
-    let result = service.stop();
     assert!(result.is_ok());
   }
 

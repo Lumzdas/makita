@@ -32,8 +32,7 @@ pub struct Environment {
 
 pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<JoinHandle<()>>) {
   let environment = set_environment();
-  let shutdown_signal = Arc::new(AtomicBool::new(false));
-  launch_tasks(&config_files, &mut tasks, environment.clone(), shutdown_signal.clone());
+  launch_tasks(&config_files, &mut tasks, environment.clone());
 
   let mut monitor = tokio_udev::AsyncMonitorSocket::new(
     tokio_udev::MonitorBuilder::new()
@@ -56,7 +55,7 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
               println!("---------------------\n\nReinitializing...\n");
               for task in &tasks { task.abort(); }
               tasks.clear();
-              launch_tasks(&config_files, &mut tasks, environment.clone(), shutdown_signal.clone())
+              launch_tasks(&config_files, &mut tasks, environment.clone())
             }
           }
           Some(Err(e)) => {
@@ -71,10 +70,7 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
 
       _ = sigint.recv() => {
         println!("\nReceived SIGINT, shutting down...");
-        shutdown_signal.store(true, Ordering::SeqCst);
-
-        println!("Waiting for tasks to complete...");
-        for task in tasks.drain(..) { let _ = task.await; }
+        for task in tasks.drain(..) { task.abort(); }
 
         println!("All tasks stopped. Exiting...");
         break;
@@ -87,7 +83,6 @@ pub fn launch_tasks(
   config_files: &Vec<Config>,
   tasks: &mut Vec<JoinHandle<()>>,
   environment: Environment,
-  shutdown_signal: Arc<AtomicBool>,
 ) {
   let modifiers: Arc<Mutex<Vec<Event>>> = Arc::new(Mutex::new(Default::default()));
   let modifier_was_activated: Arc<Mutex<bool>> = Arc::new(Mutex::new(true));
@@ -171,7 +166,6 @@ pub fn launch_tasks(
           modifiers.clone(),
           modifier_was_activated.clone(),
           environment.clone(),
-          shutdown_signal.clone(),
         );
         tasks.push(tokio::spawn(start_reader(reader)));
         devices_found += 1;

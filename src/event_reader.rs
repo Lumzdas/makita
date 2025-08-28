@@ -60,7 +60,6 @@ pub struct EventReader {
   environment: Environment,
   settings: Settings,
   ruby_service: Option<MagnusRubyService>,
-  shutdown_signal: Arc<AtomicBool>,
 }
 
 impl EventReader {
@@ -71,7 +70,6 @@ impl EventReader {
     modifiers: Arc<Mutex<Vec<Event>>>,
     modifier_was_activated: Arc<Mutex<bool>>,
     environment: Environment,
-    shutdown_signal: Arc<AtomicBool>,
   ) -> Self {
     let mut position_vector: Vec<i32> = Vec::new();
     for i in [0, 0] {
@@ -228,7 +226,6 @@ impl EventReader {
       environment,
       settings,
       ruby_service,
-      shutdown_signal,
     }
   }
 
@@ -266,17 +263,6 @@ impl EventReader {
     }
 
     loop {
-      // Check for shutdown signal
-      if self.shutdown_signal.load(Ordering::SeqCst) {
-        println!("EventReader received shutdown signal, stopping Ruby service...");
-        if let Some(ruby) = &self.ruby_service {
-          let _ = ruby.stop();
-        }
-        println!("EventReader shutting down.");
-        break;
-      }
-
-      // Process next event or break if stream ends
       let event = match stream.next().await {
         Some(Ok(event)) => event,
         Some(Err(e)) => {
@@ -288,12 +274,7 @@ impl EventReader {
           break;
         }
       };
-      match (
-        event.event_type(),
-        RelativeAxisType(event.code()),
-        AbsoluteAxisType(event.code()),
-        is_tablet,
-      ) {
+      match (event.event_type(), RelativeAxisType(event.code()), AbsoluteAxisType(event.code()), is_tablet) {
         (EventType::KEY, _, _, _) => match Key(event.code()) {
           Key::BTN_TL2 | Key::BTN_TR2 => {}
           Key::BTN_TOOL_PEN | Key::BTN_TOOL_RUBBER | Key::BTN_TOOL_BRUSH | Key::BTN_TOOL_PENCIL | Key::BTN_TOOL_AIRBRUSH | Key::BTN_TOOL_MOUSE | Key::BTN_TOOL_LENS

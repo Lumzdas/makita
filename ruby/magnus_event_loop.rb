@@ -6,7 +6,6 @@ require 'fiber'
 class MagnusRuntime
   def initialize
     @scripts = {}
-    @running = true
   end
 
   def load_script(name, path)
@@ -28,7 +27,7 @@ class MagnusRuntime
 
     Fiber.set_scheduler(FiberScheduler.new)
     Fiber.schedule do
-      while @running
+      while true
         events_data = makita_get_events
 
         events_data.each do |event_data|
@@ -47,18 +46,11 @@ class MagnusRuntime
           end
         end
 
-        sleep 0.01
+        sleep 0.001
       end
     end
 
     Fiber.scheduler.run
-
-    makita_log("info", "Magnus-based event loop stopped")
-  end
-
-  def stop
-    @running = false
-    makita_log("info", "Magnus event loop stopping")
   end
 end
 
