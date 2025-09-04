@@ -1,9 +1,9 @@
 use crate::config::{Associations, Event};
-use crate::event_reader::EventReader;
+use crate::input_event_handling::event_reader::EventReader;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
 use evdev::{Device, EventStream};
-use std::{env, path::Path, process::Command, sync::Arc, sync::atomic::{AtomicBool, Ordering}};
+use std::{env, path::Path, process::Command, sync::Arc};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;

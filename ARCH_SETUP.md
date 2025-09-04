@@ -167,7 +167,6 @@ KEY_RIGHTALT = "KEY_RIGHTCTRL"
 
 [settings]
 LAYOUT_SWITCHER = "KEY_SCROLLLOCK"
-NOTIFY_LAYOUT_SWITCH = false
 ```
 
 ### Ruby Scripting Configuration

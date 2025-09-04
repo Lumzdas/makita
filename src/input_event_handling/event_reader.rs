@@ -5,15 +5,12 @@ use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
 use evdev::{AbsoluteAxisType, EventStream, EventType, InputEvent, Key, RelativeAxisType};
-use fork::{fork, setsid, Fork};
 use std::{
   future::Future,
   option::Option,
   pin::Pin,
-  process::{Command, Stdio},
   str::FromStr,
   sync::Arc,
-  sync::atomic::{AtomicBool, Ordering},
 };
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -41,7 +38,6 @@ struct Settings {
   scroll: Movement,
   chain_only: bool,
   layout_switcher: Key,
-  notify_layout_switch: bool,
 }
 
 pub struct EventReader {
@@ -130,7 +126,6 @@ impl EventReader {
     };
 
     let layout_switcher: Key = Key::from_str(settings.get("LAYOUT_SWITCHER").unwrap_or(&"BTN_0".to_string())).expect("LAYOUT_SWITCHER is not a valid Key.");
-    let notify_layout_switch: bool = settings.get("NOTIFY_LAYOUT_SWITCH").unwrap_or(&"false".to_string()).parse().expect("Invalid NOTIFY_LAYOUT_SWITCH use true/false.");
 
     let settings = Settings {
       lstick,
@@ -143,7 +138,6 @@ impl EventReader {
       scroll,
       chain_only,
       layout_switcher,
-      notify_layout_switch,
     };
 
     // Initialize Ruby service and load scripts from config
@@ -274,6 +268,7 @@ impl EventReader {
           break;
         }
       };
+
       match (event.event_type(), RelativeAxisType(event.code()), AbsoluteAxisType(event.code()), is_tablet) {
         (EventType::KEY, _, _, _) => match Key(event.code()) {
           Key::BTN_TL2 | Key::BTN_TR2 => {}
@@ -827,52 +822,6 @@ impl EventReader {
     };
   }
 
-  async fn spawn_subprocess(&self, command_list: &Vec<String>) {
-    let mut modifier_was_activated = self.modifier_was_activated.lock().await;
-    *modifier_was_activated = true;
-    let (user, running_as_root) = if let Ok(sudo_user) = &self.environment.sudo_user {
-      (Some(sudo_user), true)
-    } else if let Ok(user) = &self.environment.user {
-      (Some(user), false)
-    } else {
-      (None, false)
-    };
-    if let Some(user) = user {
-      for command in command_list {
-        if running_as_root {
-          match fork() {
-            Ok(Fork::Child) => match fork() {
-              Ok(Fork::Child) => {
-                setsid().unwrap();
-                Command::new("runuser")
-                  .args([user, "-c", command])
-                  .stdin(Stdio::null())
-                  .stdout(Stdio::null())
-                  .stderr(Stdio::null())
-                  .spawn()
-                  .unwrap();
-                std::process::exit(0);
-              }
-              Ok(Fork::Parent(_)) => std::process::exit(0),
-              Err(_) => std::process::exit(1),
-            },
-            Ok(Fork::Parent(_)) => (),
-            Err(_) => std::process::exit(1),
-          }
-        } else {
-          Command::new("sh")
-            .arg("-c")
-            .arg(format!("systemd-run --user -M {}@ {}", user, command))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        }
-      }
-    }
-  }
-
   async fn get_axis_value(&self, event: &InputEvent, deadzone: &i32) -> i32 {
     let distance_from_center: i32 = match self.settings.axis_16_bit {
       false => (event.value() - 128) * 200,
@@ -924,13 +873,6 @@ impl EventReader {
       }) {
         break;
       };
-    }
-    if self.settings.notify_layout_switch {
-      let notify = vec![String::from(format!(
-        "notify-send -t 500 'Makita' 'Switching to layout {}'",
-        *active_layout
-      ))];
-      self.spawn_subprocess(&notify).await;
     }
   }
 

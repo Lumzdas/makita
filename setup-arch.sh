@@ -179,7 +179,6 @@ KEY_RIGHTALT = "KEY_RIGHTCTRL"
 [settings]
 # Optional settings
 LAYOUT_SWITCHER = "KEY_SCROLLLOCK"
-NOTIFY_LAYOUT_SWITCH = true
 EOF
 
     # Create a Ruby script example config

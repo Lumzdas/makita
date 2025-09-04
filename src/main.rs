@@ -1,9 +1,9 @@
 mod active_client;
 mod config;
-mod event_reader;
 mod magnus_ruby_runtime;
 mod udev_monitor;
 mod virtual_devices;
+mod input_event_handling;
 
 use crate::udev_monitor::*;
 use config::Config;

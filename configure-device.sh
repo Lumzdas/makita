@@ -91,7 +91,6 @@ create_basic_config() {
 [settings]
 # Optional settings:
 LAYOUT_SWITCHER = "KEY_SCROLLLOCK"           # Key to switch between layouts
-NOTIFY_LAYOUT_SWITCH = "false"              # Show notifications on layout switch
 CHAIN_ONLY = "true"                         # Only process modifier chains
 
 # Controller/gamepad settings (if applicable):
@@ -143,7 +142,6 @@ KEY_LEFTSHIFT-KEY_F2 = "alt_tab_combo"  # Shift+F2 generates Alt+Tab
 [settings]
 # Standard settings still apply
 LAYOUT_SWITCHER = "KEY_SCROLLLOCK"
-NOTIFY_LAYOUT_SWITCH = "false"
 
 # Environment variable setup:
 # export MAKITA_RUBY_SCRIPTS="$USER_HOME/.config/makita/scripts"

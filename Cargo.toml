@@ -13,5 +13,4 @@ tokio-udev = "0.9.1"
 swayipc-async = "2.0.2"
 x11rb = "0.13.0"
 toml = "0.7.3"
-fork = "0.1.23"
 magnus = { version = "0.7", features = ["embed"] }
