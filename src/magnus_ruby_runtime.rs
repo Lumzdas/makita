@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::{thread};
 use magnus::{embed, Ruby, Error as MagnusError, define_global_function, function, RHash, RString, Value, RArray};
 use serde::{Deserialize, Serialize};
+use evdev::EventType;
 
 // Commands sent to the Ruby thread
 #[derive(Debug)]
@@ -87,28 +88,23 @@ impl MagnusRubyService {
     let cleanup = unsafe { embed::init() };
     let ruby = &*cleanup;
 
-    define_global_function("makita_send_synthetic_event", function!(ruby_send_synthetic_event, 3));
-    define_global_function("makita_query_state", function!(ruby_query_state, 2));
-    define_global_function("makita_log", function!(ruby_log_message, 2));
-    define_global_function("makita_get_events", function!(ruby_get_events, 0));
-
     if let Err(e) = Self::setup_ruby_environment(ruby) {
-      eprintln!("Failed to setup Ruby environment: {}", e);
-      return;
+      eprintln!("[Ruby runtime] Failed to setup Ruby environment: {}", e);
+      std::process::exit(1);
     }
 
     for command in command_receiver {
-      println!("Received command: {:?}", command);
+      println!("[Ruby runtime] Received command: {:?}", command);
       match command {
         RubyCommand::LoadScript { name, path } => {
           let script = format!("$makita_runtime.load_script('{}', '{}')", name, path);
           if let Err(e) = ruby.eval::<Value>(&script) {
-            eprintln!("Failed to load script: {}", e);
+            eprintln!("[Ruby runtime] Failed to load script: {}", e);
           }
         }
         RubyCommand::StartEventLoop => {
           if let Err(e) = ruby.eval::<Value>("$makita_runtime.start_event_loop") {
-            eprintln!("Failed to start event loop: {}", e);
+            eprintln!("[Ruby runtime] Failed to start event loop: {}", e);
           }
         }
       }
@@ -116,6 +112,11 @@ impl MagnusRubyService {
   }
 
   fn setup_ruby_environment(ruby: &Ruby) -> Result<(), MagnusError> {
+    define_global_function("makita_send_synthetic_event", function!(ruby_send_synthetic_event, 3));
+    define_global_function("makita_query_state", function!(ruby_query_state, 2));
+    define_global_function("makita_log", function!(ruby_log_message, 2));
+    define_global_function("makita_get_events", function!(ruby_get_events, 0));
+
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/compatibility.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/selector.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/timeout.rb"))?;
@@ -123,6 +124,15 @@ impl MagnusRubyService {
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/fiber_scheduler.rb"))?;
 
     let _: Value = ruby.eval(include_str!("../ruby/magnus_event_loop.rb"))?;
+    let _: Value = ruby.eval(include_str!("../ruby/event_codes.rb"))?;
+
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_KEY, {})", EventType::KEY.0).as_str())?;
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_RELATIVE, {})", EventType::RELATIVE.0).as_str())?;
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_ABSOLUTE, {})", EventType::ABSOLUTE.0).as_str())?;
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_SWITCH, {})", EventType::SWITCH.0).as_str())?;
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_LED, {})", EventType::LED.0).as_str())?;
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_SOUND, {})", EventType::SOUND.0).as_str())?;
+    let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_FORCEFEEDBACKSTATUS, {})", EventType::FORCEFEEDBACKSTATUS.0).as_str())?;
 
     let _: Value = ruby.eval("$makita_runtime = MagnusRuntime.new")?;
 
@@ -130,13 +140,13 @@ impl MagnusRubyService {
   }
 
   pub fn start_event_loop(&self) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting event loop...");
+    println!("[Ruby runtime] Starting event loop...");
     self.command_sender.send(RubyCommand::StartEventLoop)?;
     Ok(())
   }
 
   pub fn load_script(&self, name: String, path: String) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Loading script: {} from {}", name, path);
+    println!("[Ruby runtime] Loading script: {} from {}", name, path);
     self.command_sender.send(RubyCommand::LoadScript { name, path })?;
     Ok(())
   }
@@ -216,10 +226,11 @@ fn ruby_log_message(level: RString, message: RString) -> Result<(), MagnusError>
   let message_str = message.to_string()?;
 
   match level_str.as_str() {
-    "error" => eprintln!("Ruby error: {}", message_str),
-    "info" => println!("Ruby info: {}", message_str),
-    "debug" => println!("Ruby debug: {}", message_str),
-    _ => println!("Ruby {}: {}", level_str, message_str),
+    "error" => eprintln!("[Ruby:error] {}", message_str),
+    "warn" => eprintln!("[Ruby:warn] {}", message_str),
+    "info" => println!("[Ruby:info] {}", message_str),
+    "debug" => println!("[Ruby:debug] {}", message_str),
+    _ => println!("[Ruby:{}] {}", level_str, message_str),
   }
 
   Ok(())

@@ -28,9 +28,7 @@ class MagnusRuntime
     Fiber.set_scheduler(FiberScheduler.new)
     Fiber.schedule do
       while true
-        events_data = makita_get_events
-
-        events_data.each do |event_data|
+        makita_get_events.each do |event_data|
           script_name = event_data['script']
           if script = @scripts[script_name]
             event = Event.new(event_data)
@@ -68,16 +66,16 @@ class Event
     @code == 0 ? nil : @code
   end
 
-  def key_down?
-    @value == 1
+  def key_up?
+    @value == Makita::KEY_VALUE_UP
   end
 
-  def key_up?
-    @value == 0
+  def key_down?
+    @value == Makita::KEY_VALUE_DOWN
   end
 
   def key_hold?
-    @value == 2
+    @value == Makita::KEY_VALUE_HOLD
   end
 
   def event_type
@@ -102,12 +100,17 @@ class Event
 end
 
 module Makita
-  KB_LALT = 56
-  KB_LTAB = 15
-  KB_ESC = 1
-  KB_ENTER = 28
-  KB_A = 30
-  KB_B = 48
+  KEY_VALUE_UP = 0
+  KEY_VALUE_DOWN = 1
+  KEY_VALUE_HOLD = 2
+
+  # EVENT_TYPE_KEY = defined back in Rust
+  # EVENT_TYPE_RELATIVE = defined back in Rust
+  # EVENT_TYPE_ABSOLUTE = defined back in Rust
+  # EVENT_TYPE_SWITCH = defined back in Rust
+  # EVENT_TYPE_LED = defined back in Rust
+  # EVENT_TYPE_SOUND = defined back in Rust
+  # EVENT_TYPE_FORCEFEEDBACKSTATUS = defined back in Rust
 
   class << self
     def runtime
@@ -115,37 +118,30 @@ module Makita
     end
 
     def press(key_code)
-      send_synthetic_event(1, key_code, 1)
-      send_synthetic_event(1, key_code, 0)
+      send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_DOWN)
+      send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_UP)
     end
 
     def press_down(*key_codes)
       key_codes.each do |key_code|
-        send_synthetic_event(1, key_code, 1)
+        send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_DOWN)
       end
     end
 
     def release(key_code)
-      send_synthetic_event(1, key_code, 0)
+      send_synthetic_event(1, key_code, KEY_VALUE_UP)
     end
 
     def get_key_state(key_code)
-      result = makita_query_state("KeyState", key_code)
-      result == "true"
+      makita_query_state("KeyState", key_code) == "true"
     end
 
     def get_modifier_state
-      result = makita_query_state("ModifierState", nil)
-      begin
-        result.gsub(/[\[\]]/, '').split(',').map(&:to_i)
-      rescue
-        []
-      end
+      makita_query_state("ModifierState", nil).gsub(/[\[\]]/, '').split(',').map(&:to_i)
     end
 
     def device_connected?
-      result = makita_query_state("DeviceConnected", nil)
-      result == "true"
+      makita_query_state("DeviceConnected", nil) == "true"
     end
 
     private
