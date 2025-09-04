@@ -1,5 +1,6 @@
 use crate::config::{Associations, Event};
 use crate::input_event_handling::event_reader::EventReader;
+use crate::input_event_handling::event_sender::EventSender;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
 use evdev::{Device, EventStream};
@@ -161,12 +162,19 @@ pub fn launch_tasks(
         println!("Constructing reader for {}...", device.0.to_str().unwrap());
         let reader = EventReader::new(
           config_list.clone(),
-          virt_dev,
+          virt_dev.clone(),
           stream,
           modifiers.clone(),
           modifier_was_activated.clone(),
           environment.clone(),
         );
+
+        if let Some(ruby_service) = reader.get_ruby_service() {
+          println!("Creating EventSender for {}...", device.0.to_str().unwrap());
+          let event_sender = EventSender::new(ruby_service, virt_dev.clone());
+          tasks.push(tokio::spawn(start_event_sender(event_sender)));
+        }
+
         tasks.push(tokio::spawn(start_reader(reader)));
         devices_found += 1;
       }
@@ -182,6 +190,12 @@ pub fn launch_tasks(
 
 pub async fn start_reader(reader: EventReader) {
   reader.start().await;
+}
+
+pub async fn start_event_sender(event_sender: EventSender) {
+  if let Err(e) = event_sender.start().await {
+    eprintln!("EventSender error: {}", e);
+  }
 }
 
 fn set_environment() -> Environment {

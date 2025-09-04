@@ -55,7 +55,7 @@ pub struct EventReader {
   current_config: Arc<Mutex<Config>>,
   environment: Environment,
   settings: Settings,
-  ruby_service: Option<MagnusRubyService>,
+  ruby_service: Option<Arc<Mutex<MagnusRubyService>>>,
 }
 
 impl EventReader {
@@ -198,7 +198,7 @@ impl EventReader {
         println!("Starting Ruby event loop...");
         service.start_event_loop().expect("Failed to start Ruby event loop");
         println!("Ruby service initialized.");
-        Some(service)
+        Some(Arc::new(Mutex::new(service)))
       } else {
         None
       }
@@ -233,6 +233,10 @@ impl EventReader {
       self.key_loop_2d(&self.settings.cursor, &self.cursor_movement, 0, 1),
       self.key_loop_2d(&self.settings.scroll, &self.scroll_movement, 12, 11),
     );
+  }
+
+  pub fn get_ruby_service(&self) -> Option<Arc<Mutex<MagnusRubyService>>> {
+    self.ruby_service.clone()
   }
 
   pub async fn event_loop(&self) {
@@ -646,7 +650,8 @@ impl EventReader {
             timestamp_nsec: default_event.timestamp().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos(),
           };
 
-          let _ = ruby.send_event(physical_event);
+          let _ = ruby.lock().await.send_event(physical_event);
+
           return;
         }
       }
