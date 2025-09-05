@@ -12,7 +12,9 @@ use std::sync::Arc;
 use tokio;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use crate::input_event_handling::event_sender::EventSender;
 use crate::ruby_runtime::RubyService;
+use crate::virtual_devices::VirtualDevices;
 
 #[tokio::main]
 async fn main() {
@@ -75,15 +77,16 @@ async fn main() {
   }
 
   let ruby_service = start_ruby_service(rubies);
+  let virtual_devices = Arc::new(Mutex::new(VirtualDevices::new()));
 
-  // if ruby_service.is_some() {
-  //   println!("[UdevMonitor] Creating EventSender for {}...", device.0.to_str().unwrap());
-  //   let event_sender = EventSender::new(ruby_service, virt_dev.clone());
-  //   tasks.push(tokio::spawn(start_event_sender(event_sender)));
-  // }
+  let mut tasks: Vec<JoinHandle<()>> = Vec::new();
+  if ruby_service.is_some() {
+    println!("Creating EventSender...");
+    let event_sender = EventSender::new(ruby_service.clone().unwrap(), virtual_devices.clone());
+    tasks.push(tokio::spawn(start_event_sender(event_sender)));
+  }
 
-  let tasks: Vec<JoinHandle<()>> = Vec::new();
-  start_monitoring_udev(configs, tasks, ruby_service).await;
+  start_monitoring_udev(configs, tasks, virtual_devices, ruby_service).await;
 }
 
 fn start_ruby_service(rubies: Vec<(String, String)>) -> Option<Arc<Mutex<RubyService>>> {

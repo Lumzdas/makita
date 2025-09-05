@@ -31,7 +31,7 @@ struct Settings {
 pub struct EventReader {
   config: Vec<Config>,
   stream: Arc<Mutex<EventStream>>,
-  virt_dev: Arc<Mutex<VirtualDevices>>,
+  virtual_devices: Arc<Mutex<VirtualDevices>>,
   lstick_position: Arc<Mutex<Vec<i32>>>,
   rstick_position: Arc<Mutex<Vec<i32>>>,
   cursor_movement: Arc<Mutex<(i32, i32)>>,
@@ -48,7 +48,7 @@ pub struct EventReader {
 impl EventReader {
   pub fn new(
     config: Vec<Config>,
-    virt_dev: Arc<Mutex<VirtualDevices>>,
+    virtual_devices: Arc<Mutex<VirtualDevices>>,
     stream: Arc<Mutex<EventStream>>,
     modifiers: Arc<Mutex<Vec<Event>>>,
     modifier_was_activated: Arc<Mutex<bool>>,
@@ -100,7 +100,7 @@ impl EventReader {
     Self {
       config,
       stream,
-      virt_dev,
+      virtual_devices: virtual_devices,
       lstick_position,
       rstick_position,
       cursor_movement,
@@ -500,7 +500,7 @@ impl EventReader {
     release_keys: bool,
     ignore_modifiers: bool,
   ) {
-    let mut virt_dev = self.virt_dev.lock().await;
+    let mut virtual_devices = self.virtual_devices.lock().await;
     let mut modifier_was_activated = self.modifier_was_activated.lock().await;
     if release_keys && value != 2 {
       let released_keys: Vec<Key> = self.released_keys(&modifiers, &config).await;
@@ -508,14 +508,14 @@ impl EventReader {
         if config.mapped_modifiers.all.contains(&Event::Key(key)) {
           self.toggle_modifiers(Event::Key(key), 0, &config).await;
           let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
-          virt_dev.keys.emit(&[virtual_event]).unwrap();
+          virtual_devices.keys.emit(&[virtual_event]).unwrap();
         }
       }
     } else if ignore_modifiers {
       for key in modifiers.iter() {
         if let Event::Key(key) = key {
           let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
-          virt_dev.keys.emit(&[virtual_event]).unwrap();
+          virtual_devices.keys.emit(&[virtual_event]).unwrap();
         }
       }
     }
@@ -526,16 +526,16 @@ impl EventReader {
       if config.mapped_modifiers.custom.contains(&Event::Key(*key)) {
         if value == 0 && !*modifier_was_activated {
           let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 1);
-          virt_dev.keys.emit(&[virtual_event]).unwrap();
+          virtual_devices.keys.emit(&[virtual_event]).unwrap();
           let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
-          virt_dev.keys.emit(&[virtual_event]).unwrap();
+          virtual_devices.keys.emit(&[virtual_event]).unwrap();
           *modifier_was_activated = true;
         } else if value == 1 {
           *modifier_was_activated = false;
         }
       } else {
         let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), value);
-        virt_dev.keys.emit(&[virtual_event]).unwrap();
+        virtual_devices.keys.emit(&[virtual_event]).unwrap();
         *modifier_was_activated = true;
       }
     }
@@ -549,23 +549,23 @@ impl EventReader {
     modifiers: &Vec<Event>,
     config: &Config,
   ) {
-    let mut virt_dev = self.virt_dev.lock().await;
+    let mut virtual_devices = self.virtual_devices.lock().await;
     let mut modifier_was_activated = self.modifier_was_activated.lock().await;
     if config.mapped_modifiers.all.contains(&event) && value != 2 {
       let released_keys: Vec<Key> = self.released_keys(&modifiers, &config).await;
       for key in released_keys {
         self.toggle_modifiers(Event::Key(key), 0, &config).await;
         let virtual_event: InputEvent = InputEvent::new_now(EventType::KEY, key.code(), 0);
-        virt_dev.keys.emit(&[virtual_event]).unwrap()
+        virtual_devices.keys.emit(&[virtual_event]).unwrap()
       }
     }
     self.toggle_modifiers(event, value, &config).await;
     if config.mapped_modifiers.custom.contains(&event) {
       if value == 0 && !*modifier_was_activated {
         let virtual_event: InputEvent = InputEvent::new_now(default_event.event_type(), default_event.code(), 1);
-        virt_dev.keys.emit(&[virtual_event]).unwrap();
+        virtual_devices.keys.emit(&[virtual_event]).unwrap();
         let virtual_event: InputEvent = InputEvent::new_now(default_event.event_type(), default_event.code(), 0);
-        virt_dev.keys.emit(&[virtual_event]).unwrap();
+        virtual_devices.keys.emit(&[virtual_event]).unwrap();
         *modifier_was_activated = true;
       } else if value == 1 {
         *modifier_was_activated = false;
@@ -573,8 +573,8 @@ impl EventReader {
     } else {
       *modifier_was_activated = true;
       match default_event.event_type() {
-        EventType::KEY => virt_dev.keys.emit(&[default_event]).unwrap(),
-        EventType::RELATIVE => virt_dev.axis.emit(&[default_event]).unwrap(),
+        EventType::KEY => virtual_devices.keys.emit(&[default_event]).unwrap(),
+        EventType::RELATIVE => virtual_devices.axis.emit(&[default_event]).unwrap(),
         _ => {}
       }
     }
@@ -582,8 +582,8 @@ impl EventReader {
 
   async fn emit_default_event(&self, event: InputEvent) {
     match event.event_type() {
-      EventType::KEY => self.virt_dev.lock().await.keys.emit(&[event]).unwrap(),
-      EventType::RELATIVE => self.virt_dev.lock().await.axis.emit(&[event]).unwrap(),
+      EventType::KEY => self.virtual_devices.lock().await.keys.emit(&[event]).unwrap(),
+      EventType::RELATIVE => self.virtual_devices.lock().await.axis.emit(&[event]).unwrap(),
       _ => {}
     }
   }

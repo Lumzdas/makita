@@ -32,9 +32,14 @@ pub struct Environment {
   pub server: Server,
 }
 
-pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<JoinHandle<()>>, ruby_service: Option<Arc<Mutex<RubyService>>>) {
+pub async fn start_monitoring_udev(
+  config_files: Vec<Config>,
+  mut tasks: Vec<JoinHandle<()>>,
+  virtual_devices: Arc<Mutex<VirtualDevices>>,
+  ruby_service: Option<Arc<Mutex<RubyService>>>
+) {
   let environment = set_environment();
-  launch_tasks(&config_files, &mut tasks, ruby_service.clone(), environment.clone());
+  launch_tasks(&config_files, &mut tasks, virtual_devices.clone(), ruby_service.clone(), environment.clone());
 
   let mut monitor = tokio_udev::AsyncMonitorSocket::new(
     tokio_udev::MonitorBuilder::new()
@@ -57,7 +62,7 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
               println!("[UdevMonitor] Reinitializing...");
               for task in &tasks { task.abort(); }
               tasks.clear();
-              launch_tasks(&config_files, &mut tasks, ruby_service.clone(), environment.clone())
+              launch_tasks(&config_files, &mut tasks, virtual_devices.clone(), ruby_service.clone(), environment.clone())
             }
           }
           Some(Err(e)) => {
@@ -84,6 +89,7 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
 pub fn launch_tasks(
   config_files: &Vec<Config>,
   tasks: &mut Vec<JoinHandle<()>>,
+  virtual_devices: Arc<Mutex<VirtualDevices>>,
   ruby_service: Option<Arc<Mutex<RubyService>>>,
   environment: Environment,
 ) {
@@ -163,10 +169,9 @@ pub fn launch_tasks(
         config_list.clone(),
       )));
       println!("[UdevMonitor] Constructing reader for {} ({})...", device.0.to_str().unwrap(), actual_device_name);
-      let virt_dev = Arc::new(Mutex::new(VirtualDevices::new()));
       let reader = EventReader::new(
         config_list.clone(),
-        virt_dev.clone(),
+        virtual_devices.clone(),
         stream,
         modifiers.clone(),
         modifier_was_activated.clone(),
