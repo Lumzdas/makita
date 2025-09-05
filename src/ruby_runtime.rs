@@ -96,6 +96,7 @@ impl RubyService {
           let script = format!("$makita_runtime.load_script('{}', '{}')", name, path);
           if let Err(e) = ruby.eval::<Value>(&script) {
             eprintln!("[RubyRuntime] Failed to load script: {}", e);
+            std::process::exit(1);
           }
         }
         RubyCommand::StartEventLoop => {

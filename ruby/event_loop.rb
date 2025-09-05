@@ -16,6 +16,7 @@ class MagnusRuntime
     rescue => e
       makita_log("error", "Failed to load script #{name}: #{e.message}")
       makita_log("error", "    from #{e.backtrace.first}")
+      raise
     end
   end
 

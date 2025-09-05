@@ -14,3 +14,4 @@ swayipc-async = "2.0.2"
 x11rb = "0.13.0"
 toml = "0.7.3"
 magnus = { version = "0.7", features = ["embed"] }
+service = "0.2.0"

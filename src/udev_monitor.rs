@@ -9,6 +9,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 use tokio::signal;
+use crate::ruby_runtime::RubyService;
 
 #[derive(Debug, Default, Eq, PartialEq, Hash, Clone)]
 pub enum Client {
@@ -31,9 +32,9 @@ pub struct Environment {
   pub server: Server,
 }
 
-pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<JoinHandle<()>>) {
+pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<JoinHandle<()>>, ruby_service: Option<Arc<Mutex<RubyService>>>) {
   let environment = set_environment();
-  launch_tasks(&config_files, &mut tasks, environment.clone());
+  launch_tasks(&config_files, &mut tasks, ruby_service.clone(), environment.clone());
 
   let mut monitor = tokio_udev::AsyncMonitorSocket::new(
     tokio_udev::MonitorBuilder::new()
@@ -56,7 +57,7 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
               println!("[UdevMonitor] Reinitializing...");
               for task in &tasks { task.abort(); }
               tasks.clear();
-              launch_tasks(&config_files, &mut tasks, environment.clone())
+              launch_tasks(&config_files, &mut tasks, ruby_service.clone(), environment.clone())
             }
           }
           Some(Err(e)) => {
@@ -83,6 +84,7 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
 pub fn launch_tasks(
   config_files: &Vec<Config>,
   tasks: &mut Vec<JoinHandle<()>>,
+  ruby_service: Option<Arc<Mutex<RubyService>>>,
   environment: Environment,
 ) {
   let modifiers: Arc<Mutex<Vec<Event>>> = Arc::new(Mutex::new(Default::default()));
@@ -110,12 +112,14 @@ pub fn launch_tasks(
   let devices: evdev::EnumerateDevices = evdev::enumerate();
   let mut devices_found = 0;
   for device in devices {
+    let actual_device_name = device.1.name().unwrap();
     let mut config_list: Vec<Config> = Vec::new();
-    for mut config in config_files.clone() {
-      let split_config_name = config.name.split("::").collect::<Vec<&str>>();
-      let associated_device_name = split_config_name[0];
 
-      if associated_device_name == device.1.name().unwrap().replace("/", "") {
+    for config in config_files {
+      let split_config_name = config.name.split("::").collect::<Vec<&str>>();
+      let configured_device_name = split_config_name[0];
+
+      if configured_device_name == actual_device_name.replace("/", "") {
         let (window_class, layout) = match split_config_name.len() {
           1 => (Client::Default, 0),
           2 => {
@@ -141,43 +145,37 @@ pub fn launch_tasks(
           }
         };
 
-        config.associations.client = window_class;
-        config.associations.layout = layout;
-        config_list.push(config.clone());
+        let mut device_config = config.clone();
+        device_config.associations.client = window_class;
+        device_config.associations.layout = layout;
+        config_list.push(device_config);
       };
     }
 
     if config_list.len() > 0 && !config_list.iter().any(|x| x.associations == Associations::default()) {
-      config_list.push(Config::new_empty(device.1.name().unwrap().replace("/", "")));
+      config_list.push(Config::new_empty(actual_device_name.to_string()));
     }
 
     let event_device = device.0.as_path().to_str().unwrap().to_string();
     if config_list.len() != 0 {
-      if device.0.to_str().unwrap() == "/dev/input/event7" { // TODO: move ruby runtime creation to main.rs so that it is created only once
-        let stream = Arc::new(Mutex::new(get_event_stream(
-          Path::new(&event_device),
-          config_list.clone(),
-        )));
-        println!("[UdevMonitor] Constructing reader for {} ({})...", device.0.to_str().unwrap(), device.1.name().unwrap());
-        let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
-        let reader = EventReader::new(
-          config_list.clone(),
-          virt_dev.clone(),
-          stream,
-          modifiers.clone(),
-          modifier_was_activated.clone(),
-          environment.clone(),
-        );
+      let stream = Arc::new(Mutex::new(get_event_stream(
+        Path::new(&event_device),
+        config_list.clone(),
+      )));
+      println!("[UdevMonitor] Constructing reader for {} ({})...", device.0.to_str().unwrap(), actual_device_name);
+      let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
+      let reader = EventReader::new(
+        config_list.clone(),
+        virt_dev.clone(),
+        stream,
+        modifiers.clone(),
+        modifier_was_activated.clone(),
+        environment.clone(),
+        ruby_service.clone(),
+      );
 
-        if let Some(ruby_service) = reader.get_ruby_service() {
-          println!("[UdevMonitor] Creating EventSender for {}...", device.0.to_str().unwrap());
-          let event_sender = EventSender::new(ruby_service, virt_dev.clone());
-          tasks.push(tokio::spawn(start_event_sender(event_sender)));
-        }
-
-        tasks.push(tokio::spawn(start_reader(reader)));
-        devices_found += 1;
-      }
+      tasks.push(tokio::spawn(start_reader(reader)));
+      devices_found += 1;
     }
   }
 

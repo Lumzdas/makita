@@ -66,6 +66,7 @@ impl EventReader {
     modifiers: Arc<Mutex<Vec<Event>>>,
     modifier_was_activated: Arc<Mutex<bool>>,
     environment: Environment,
+    ruby_service: Option<Arc<Mutex<RubyService>>>,
   ) -> Self {
     let mut position_vector: Vec<i32> = Vec::new();
     for i in [0, 0] {
@@ -140,45 +141,6 @@ impl EventReader {
       layout_switcher,
     };
 
-    let ruby_service = {
-      println!("[EventReader] Initializing Ruby service...");
-
-      let service = RubyService::new(move |query| {
-        use crate::ruby_runtime::{StateQuery, StateResponse};
-        match query {
-          StateQuery::KeyState(key_code) => {
-            // TODO: implement
-            StateResponse::KeyState(false)
-          }
-        }
-      }).expect("Failed to create Ruby service");
-      let mut has_scripts = false;
-
-      // Load all Ruby scripts from all configs
-      for cfg in &config {
-        for (_event, modifier_map) in &cfg.bindings.rubies {
-          for (_modifiers, script_name) in modifier_map {
-            if let Ok(ruby_scripts_path) = std::env::var("MAKITA_RUBY_SCRIPTS") {
-              println!("[EventReader] Loading Ruby script: {}", script_name);
-              let script_path = format!("{}/{}.rb", ruby_scripts_path, script_name);
-              let _ = service.load_script(script_name.clone(), script_path);
-              has_scripts = true;
-            }
-          }
-        }
-      }
-
-      // Start the Ruby event loop if we have scripts
-      if has_scripts {
-        println!("[EventReader] Starting Ruby event loop...");
-        service.start_event_loop().expect("Failed to start Ruby event loop");
-        println!("[EventReader] Ruby service initialized.");
-        Some(Arc::new(Mutex::new(service)))
-      } else {
-        None
-      }
-    };
-
     Self {
       config,
       stream,
@@ -199,7 +161,7 @@ impl EventReader {
   }
 
   pub async fn start(&self) {
-    println!("[EventReader] {:?} detected, reading events.", self.current_config.lock().await.name);
+    println!("[EventReader] {} detected, reading events.", self.current_config.lock().await.name);
 
     tokio::join!(
       self.event_loop(),
