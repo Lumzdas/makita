@@ -163,7 +163,7 @@ pub fn launch_tasks(
         config_list.clone(),
       )));
       println!("[UdevMonitor] Constructing reader for {} ({})...", device.0.to_str().unwrap(), actual_device_name);
-      let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
+      let virt_dev = Arc::new(Mutex::new(VirtualDevices::new()));
       let reader = EventReader::new(
         config_list.clone(),
         virt_dev.clone(),

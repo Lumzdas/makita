@@ -33,7 +33,6 @@ struct Settings {
   invert_cursor_axis: bool,
   invert_scroll_axis: bool,
   axis_16_bit: bool,
-  stadia: bool,
   cursor: Movement,
   scroll: Movement,
   chain_only: bool,
@@ -107,7 +106,6 @@ impl EventReader {
     };
 
     let axis_16_bit: bool = settings.get("16_BIT_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid 16_BIT_AXIS use true/false.");
-    let stadia: bool = settings.get("STADIA").unwrap_or(&"false".to_string()).parse().expect("Invalid STADIA use true/false.");
     let chain_only: bool = settings.get("CHAIN_ONLY").unwrap_or(&"true".to_string()).parse().expect("Invalid CHAIN_ONLY use true/false.");
     let invert_cursor_axis: bool = settings.get("INVERT_CURSOR_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid INVERT_CURSOR_AXIS use true/false.");
     let invert_scroll_axis: bool = settings.get("INVERT_SCROLL_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid INVERT_SCROLL_AXIS use true/false.");
@@ -134,7 +132,6 @@ impl EventReader {
       invert_cursor_axis,
       invert_scroll_axis,
       axis_16_bit,
-      stadia,
       cursor,
       scroll,
       chain_only,
@@ -186,8 +183,6 @@ impl EventReader {
     ) = ((0, 0), (0, 0), (0, 0), (0, 0), 0);
     let switcher: Key = self.settings.layout_switcher;
     let mut stream = self.stream.lock().await;
-    let mut pen_events: Vec<InputEvent> = Vec::new();
-    let is_tablet: bool = stream.device().supported_keys().unwrap_or(&evdev::AttributeSet::new()).contains(Key::BTN_TOOL_PEN);
     let mut max_abs_wheel = 0;
     if let Ok(abs_state) = stream.device().get_abs_state() {
       for state in abs_state {
@@ -210,11 +205,9 @@ impl EventReader {
         }
       };
 
-      match (event.event_type(), RelativeAxisType(event.code()), AbsoluteAxisType(event.code()), is_tablet) {
+      match (event.event_type(), RelativeAxisType(event.code()), AbsoluteAxisType(event.code()), false) {
         (EventType::KEY, _, _, _) => match Key(event.code()) {
-          Key::BTN_TL2 | Key::BTN_TR2 => {}
-          Key::BTN_TOOL_PEN | Key::BTN_TOOL_RUBBER | Key::BTN_TOOL_BRUSH | Key::BTN_TOOL_PENCIL | Key::BTN_TOOL_AIRBRUSH | Key::BTN_TOOL_MOUSE | Key::BTN_TOOL_LENS
-          if is_tablet => pen_events.push(event),
+          Key::BTN_TL2 | Key::BTN_TR2 => {},
           key if key == switcher && event.value() == 1 => self.change_active_layout().await,
           _ => self.convert_event(event, Event::Key(Key(event.code())), event.value(), false).await
         },
@@ -240,13 +233,12 @@ impl EventReader {
           abs_wheel_position = value;
         }
         (EventType::ABSOLUTE, _, AbsoluteAxisType::ABS_MISC, _) => {
-          if is_tablet == false && event.value() == 0 {
+          if event.value() == 0 {
             abs_wheel_position = 0
           } else {
             self.emit_default_event(event).await;
           }
         }
-        (EventType::ABSOLUTE, _, _, true) => pen_events.push(event),
         (_, _, AbsoluteAxisType::ABS_HAT0X, _) => {
           match event.value() {
             -1 => {
@@ -424,127 +416,29 @@ impl EventReader {
           _ => {}
         },
         (EventType::ABSOLUTE, _, AbsoluteAxisType::ABS_Z, false) => {
-          if !self.settings.stadia {
-            match (event.value(), triggers_values.0) {
-              (0, 1) => {
-                self.convert_event(event, Event::Axis(Axis::BTN_TL2), 0, false).await;
-                triggers_values.0 = 0;
-              }
-              (_, 0) => {
-                self.convert_event(event, Event::Axis(Axis::BTN_TL2), 1, false).await;
-                triggers_values.0 = 1;
-              }
-              _ => {}
+          match (event.value(), triggers_values.0) {
+            (0, 1) => {
+              self.convert_event(event, Event::Axis(Axis::BTN_TL2), 0, false).await;
+              triggers_values.0 = 0;
             }
-          } else {
-            match self.settings.rstick.function.as_str() {
-              "cursor" | "scroll" => {
-                let axis_value = self.get_axis_value(&event, &self.settings.rstick.deadzone).await;
-                let mut rstick_position = self.rstick_position.lock().await;
-                rstick_position[0] = axis_value;
-              }
-              "bind" => {
-                let axis_value = self.get_axis_value(&event, &self.settings.rstick.deadzone).await;
-                let direction = if axis_value < 0 {
-                  -1
-                } else if axis_value > 0 {
-                  1
-                } else {
-                  0
-                };
-                match direction {
-                  -1 if rstick_values.0 != -1 => {
-                    self.convert_event(event, Event::Axis(Axis::RSTICK_LEFT), 1, false).await;
-                    rstick_values.0 = -1
-                  }
-                  1 => {
-                    if rstick_values.0 != 1 {
-                      self.convert_event(event, Event::Axis(Axis::RSTICK_RIGHT), 1, false).await;
-                      rstick_values.0 = 1
-                    }
-                  }
-                  0 => {
-                    if rstick_values.0 != 0 {
-                      match rstick_values.0 {
-                        -1 => self.convert_event(event, Event::Axis(Axis::RSTICK_LEFT), 0, false).await,
-                        1 => self.convert_event(event, Event::Axis(Axis::RSTICK_RIGHT), 0, false).await,
-                        _ => {}
-                      }
-                      rstick_values.0 = 0;
-                    }
-                  }
-                  _ => {}
-                }
-              }
-              _ => {}
+            (_, 0) => {
+              self.convert_event(event, Event::Axis(Axis::BTN_TL2), 1, false).await;
+              triggers_values.0 = 1;
             }
+            _ => {}
           }
         }
         (EventType::ABSOLUTE, _, AbsoluteAxisType::ABS_RZ, false) => {
-          if !self.settings.stadia {
-            match (event.value(), triggers_values.1) {
-              (0, 1) => {
-                self.convert_event(event, Event::Axis(Axis::BTN_TR2), 0, false).await;
-                triggers_values.1 = 0;
-              }
-              (_, 0) => {
-                self.convert_event(event, Event::Axis(Axis::BTN_TR2), 1, false).await;
-                triggers_values.1 = 1;
-              }
-              _ => {}
+          match (event.value(), triggers_values.1) {
+            (0, 1) => {
+              self.convert_event(event, Event::Axis(Axis::BTN_TR2), 0, false).await;
+              triggers_values.1 = 0;
             }
-          } else {
-            match self.settings.rstick.function.as_str() {
-              "cursor" | "scroll" => {
-                let axis_value = self.get_axis_value(&event, &self.settings.rstick.deadzone).await;
-                let mut rstick_position = self.rstick_position.lock().await;
-                rstick_position[1] = axis_value;
-              }
-              "bind" => {
-                let axis_value = self.get_axis_value(&event, &self.settings.rstick.deadzone).await;
-                let direction = if axis_value < 0 {
-                  -1
-                } else if axis_value > 0 {
-                  1
-                } else {
-                  0
-                };
-                match direction {
-                  -1 => {
-                    if rstick_values.1 != -1 {
-                      self.convert_event(event, Event::Axis(Axis::RSTICK_UP), 1, false).await;
-                      rstick_values.1 = -1
-                    }
-                  }
-                  1 => {
-                    if rstick_values.1 != 1 {
-                      self.convert_event(event, Event::Axis(Axis::RSTICK_DOWN), 1, false).await;
-                      rstick_values.1 = 1
-                    }
-                  }
-                  0 => {
-                    if rstick_values.1 != 0 {
-                      match rstick_values.1 {
-                        -1 => self.convert_event(event, Event::Axis(Axis::RSTICK_UP), 0, false).await,
-                        1 => self.convert_event(event, Event::Axis(Axis::RSTICK_DOWN), 0, false).await,
-                        _ => {}
-                      }
-                      rstick_values.1 = 0;
-                    }
-                  }
-                  _ => {}
-                }
-              }
-              _ => {}
+            (_, 0) => {
+              self.convert_event(event, Event::Axis(Axis::BTN_TR2), 1, false).await;
+              triggers_values.1 = 1;
             }
-          }
-        }
-        (EventType::MISC, _, _, true) => {
-          if evdev::MiscType(event.code()) == evdev::MiscType::MSC_SERIAL {
-            pen_events.push(event);
-            let mut virt_dev = self.virt_dev.lock().await;
-            virt_dev.abs.emit(&pen_events).unwrap();
-            pen_events.clear()
+            _ => {}
           }
         }
         _ => self.emit_default_event(event).await,
@@ -729,8 +623,6 @@ impl EventReader {
       match default_event.event_type() {
         EventType::KEY => virt_dev.keys.emit(&[default_event]).unwrap(),
         EventType::RELATIVE => virt_dev.axis.emit(&[default_event]).unwrap(),
-        EventType::ABSOLUTE => virt_dev.abs.emit(&[default_event]).unwrap(),
-        EventType::MISC => self.virt_dev.lock().await.abs.emit(&[default_event]).unwrap(),
         _ => {}
       }
     }
@@ -740,8 +632,6 @@ impl EventReader {
     match event.event_type() {
       EventType::KEY => self.virt_dev.lock().await.keys.emit(&[event]).unwrap(),
       EventType::RELATIVE => self.virt_dev.lock().await.axis.emit(&[event]).unwrap(),
-      EventType::ABSOLUTE => self.virt_dev.lock().await.abs.emit(&[event]).unwrap(),
-      EventType::MISC => self.virt_dev.lock().await.abs.emit(&[event]).unwrap(),
       _ => {}
     }
   }
