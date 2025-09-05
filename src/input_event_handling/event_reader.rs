@@ -140,20 +140,14 @@ impl EventReader {
       layout_switcher,
     };
 
-    // Initialize Ruby service and load scripts from config
     let ruby_service = {
-      // Clone references for the state handler closure
       println!("[EventReader] Initializing Ruby service...");
-      let modifiers_ref = Arc::clone(&modifiers);
-      println!("[EventReader] Modifiers reference cloned.");
-      let device_connected_ref = Arc::clone(&device_is_connected);
-      println!("[EventReader] Device connection reference cloned.");
 
       let service = RubyService::new(move |query| {
         use crate::ruby_runtime::{StateQuery, StateResponse};
         match query {
           StateQuery::KeyState(key_code) => {
-            // For now, return false - could be enhanced to track actual key states
+            // TODO: implement
             StateResponse::KeyState(false)
           }
         }
