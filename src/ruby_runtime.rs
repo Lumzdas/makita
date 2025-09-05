@@ -32,15 +32,11 @@ pub struct SyntheticEvent {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum StateQuery {
   KeyState(u16),
-  ModifierState,
-  DeviceConnected,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum StateResponse {
   KeyState(bool),
-  ModifierState(Vec<u16>),
-  DeviceConnected(bool),
 }
 
 pub struct RubyService {
@@ -202,18 +198,12 @@ fn ruby_query_state(query_type: RString, key_code: Option<u16>) -> Result<RStrin
             return Ok(RString::new("false"));
           }
         },
-        "ModifierState" => StateQuery::ModifierState,
-        "DeviceConnected" => StateQuery::DeviceConnected,
         _ => return Ok(RString::new("false")),
       };
 
       let response = handler(query);
       let result = match response {
         StateResponse::KeyState(pressed) => pressed.to_string(),
-        StateResponse::ModifierState(keys) => {
-          format!("[{}]", keys.iter().map(|k| k.to_string()).collect::<Vec<_>>().join(","))
-        },
-        StateResponse::DeviceConnected(connected) => connected.to_string(),
       };
       return Ok(RString::new(&result));
     }
@@ -272,8 +262,6 @@ mod tests {
   fn test_magnus_ruby_service_creation() {
     let service = RubyService::new(|query| match query {
       StateQuery::KeyState(_) => StateResponse::KeyState(false),
-      StateQuery::ModifierState => StateResponse::ModifierState(vec![]),
-      StateQuery::DeviceConnected => StateResponse::DeviceConnected(true),
     });
 
     assert!(service.is_ok());
@@ -283,8 +271,6 @@ mod tests {
   fn test_command_sending() {
     let service = RubyService::new(|query| match query {
       StateQuery::KeyState(_) => StateResponse::KeyState(false),
-      StateQuery::ModifierState => StateResponse::ModifierState(vec![]),
-      StateQuery::DeviceConnected => StateResponse::DeviceConnected(true),
     }).expect("Failed to create service");
 
     // Test script loading
@@ -312,8 +298,6 @@ mod tests {
   fn test_synthetic_event_reception() {
     let service = RubyService::new(|query| match query {
       StateQuery::KeyState(_) => StateResponse::KeyState(false),
-      StateQuery::ModifierState => StateResponse::ModifierState(vec![]),
-      StateQuery::DeviceConnected => StateResponse::DeviceConnected(true),
     }).expect("Failed to create service");
 
     // Initially should have no events

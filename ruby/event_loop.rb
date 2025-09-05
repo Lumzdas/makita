@@ -136,14 +136,6 @@ module Makita
       makita_query_state("KeyState", key_code) == "true"
     end
 
-    def get_modifier_state
-      makita_query_state("ModifierState", nil).gsub(/[\[\]]/, '').split(',').map(&:to_i)
-    end
-
-    def device_connected?
-      makita_query_state("DeviceConnected", nil) == "true"
-    end
-
     private
 
     def send_synthetic_event(event_type, code, value)

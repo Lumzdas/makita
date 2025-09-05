@@ -156,25 +156,6 @@ impl EventReader {
             // For now, return false - could be enhanced to track actual key states
             StateResponse::KeyState(false)
           }
-          StateQuery::ModifierState => {
-            // Return current modifier keys
-            if let Ok(mods) = modifiers_ref.try_lock() {
-              let codes: Vec<u16> = mods.iter().map(|e| match e {
-                Event::Key(key) => key.code(),
-                _ => 0,
-              }).collect();
-              StateResponse::ModifierState(codes)
-            } else {
-              StateResponse::ModifierState(vec![])
-            }
-          }
-          StateQuery::DeviceConnected => {
-            if let Ok(connected) = device_connected_ref.try_lock() {
-              StateResponse::DeviceConnected(*connected)
-            } else {
-              StateResponse::DeviceConnected(false)
-            }
-          }
         }
       }).expect("Failed to create Ruby service");
       let mut has_scripts = false;

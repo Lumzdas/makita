@@ -153,7 +153,7 @@ pub fn launch_tasks(
 
     let event_device = device.0.as_path().to_str().unwrap().to_string();
     if config_list.len() != 0 {
-      if device.0.to_str().unwrap() == "/dev/input/event7" {
+      if device.0.to_str().unwrap() == "/dev/input/event7" { // TODO: move ruby runtime creation to main.rs so that it is created only once
         let stream = Arc::new(Mutex::new(get_event_stream(
           Path::new(&event_device),
           config_list.clone(),
