@@ -100,7 +100,7 @@ impl EventReader {
     Self {
       config,
       stream,
-      virtual_devices: virtual_devices,
+      virtual_devices,
       lstick_position,
       rstick_position,
       cursor_movement,
@@ -117,14 +117,7 @@ impl EventReader {
 
   pub async fn start(&self) {
     println!("[EventReader] {} detected, reading events.", self.current_config.lock().await.name);
-
-    tokio::join!(
-      self.event_loop(),
-      // self.loop_2d("cursor", self.settings.invert_cursor_axis, 0, 1),
-      // self.loop_2d("scroll", self.settings.invert_scroll_axis, 12, 11),
-      // self.key_loop_2d(&self.settings.cursor, &self.cursor_movement, 0, 1),
-      // self.key_loop_2d(&self.settings.scroll, &self.scroll_movement, 12, 11),
-    );
+    tokio::join!(self.event_loop());
   }
 
   pub async fn event_loop(&self) {
