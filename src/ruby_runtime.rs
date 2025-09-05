@@ -120,6 +120,8 @@ impl RubyService {
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/timeouts.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/fiber_scheduler.rb"))?;
 
+    let _: Value = ruby.eval(include_str!("../ruby/event.rb"))?;
+    let _: Value = ruby.eval(include_str!("../ruby/makita.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/event_loop.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/event_codes.rb"))?;
 
@@ -131,7 +133,7 @@ impl RubyService {
     let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_SOUND, {})", EventType::SOUND.0).as_str())?;
     let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_FORCEFEEDBACKSTATUS, {})", EventType::FORCEFEEDBACKSTATUS.0).as_str())?;
 
-    let _: Value = ruby.eval("$makita_runtime = MagnusRuntime.new")?;
+    let _: Value = ruby.eval("$makita_runtime = Runtime.new")?;
 
     Ok(())
   }

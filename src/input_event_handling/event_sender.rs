@@ -29,18 +29,27 @@ impl EventSender {
     println!("[EventSender] Starting event sender loop");
 
     while *self.running.lock().await {
-      let events = {
+      let ruby_events = {
         let ruby_service = self.ruby_service.lock().await;
         ruby_service.receive_synthetic_events()
       };
 
-      if !events.is_empty() {
-        println!("[EventSender] Received {} synthetic events", events.len());
+      if !ruby_events.is_empty() {
+        println!("[EventSender] Received {} synthetic events", ruby_events.len());
 
-        for event in events {
-          if let Err(e) = self.send_synthetic_event(event).await {
-            eprintln!("[EventSender] Error sending synthetic event: {}", e);
+        let mut virtual_devices = self.virtual_devices.lock().await;
+        for event in ruby_events {
+          let input_event = InputEvent::new(EventType(event.event_type), event.code, event.value);
+
+          match EventType(event.event_type) {
+            EventType::KEY | EventType::SWITCH => virtual_devices.keys.emit(&[input_event])?,
+            EventType::RELATIVE => virtual_devices.axis.emit(&[input_event])?,
+            _ => virtual_devices.keys.emit(&[input_event])?,
           }
+
+          // Slight delay to prevent missed events.
+          // Not sure why this works.
+          sleep(Duration::from_nanos(1)).await;
         }
       }
 
@@ -48,37 +57,6 @@ impl EventSender {
     }
 
     println!("[EventSender] Event sender loop stopped");
-    Ok(())
-  }
-
-  async fn send_synthetic_event(&self, synthetic_event: SyntheticEvent) -> Result<(), Box<dyn std::error::Error>> {
-    let mut virtual_devices = self.virtual_devices.lock().await;
-
-    let input_event = InputEvent::new(
-      EventType(synthetic_event.event_type),
-      synthetic_event.code,
-      synthetic_event.value,
-    );
-
-    match EventType(synthetic_event.event_type) {
-      EventType::KEY => {
-        virtual_devices.keys.emit(&[input_event])?;
-        println!("[EventSender] Sent KEY event: code={}, value={}", synthetic_event.code, synthetic_event.value);
-      }
-      EventType::RELATIVE => {
-        virtual_devices.axis.emit(&[input_event])?;
-        println!("[EventSender] Sent RELATIVE event: code={}, value={}", synthetic_event.code, synthetic_event.value);
-      }
-      EventType::SWITCH => {
-        virtual_devices.keys.emit(&[input_event])?;
-        println!("[EventSender] Sent SWITCH event: code={}, value={}", synthetic_event.code, synthetic_event.value);
-      }
-      _ => {
-        virtual_devices.keys.emit(&[input_event])?;
-        println!("[EventSender] Sent OTHER event (type={}): code={}, value={}", synthetic_event.event_type, synthetic_event.code, synthetic_event.value);
-      }
-    }
-
     Ok(())
   }
 }

@@ -31,6 +31,42 @@ module MakitaEventCodes
       .lines
       .filter_map { _1.match(/^#define\s+(\S+)\s+(\(.*?\)|\S+)/)&.captures }
       .map { |name, value| Makita.const_set(name, determine(value)) }
+
+    Makita.const_set(:CHAR_TO_KEYCODE, {
+      ' ' => [Makita.const_get(:KEY_SPACE), :lower],
+      '!' => [Makita.const_get(:KEY_1), :upper],
+      '@' => [Makita.const_get(:KEY_2), :upper],
+      '#' => [Makita.const_get(:KEY_3), :upper],
+      '$' => [Makita.const_get(:KEY_4), :upper],
+      '%' => [Makita.const_get(:KEY_5), :upper],
+      '^' => [Makita.const_get(:KEY_6), :upper],
+      '&' => [Makita.const_get(:KEY_7), :upper],
+      '*' => [Makita.const_get(:KEY_8), :upper],
+      '(' => [Makita.const_get(:KEY_9), :upper],
+      ')' => [Makita.const_get(:KEY_0), :upper],
+      '-' => [Makita.const_get(:KEY_MINUS), :lower],
+      '_' => [Makita.const_get(:KEY_MINUS), :upper],
+      '=' => [Makita.const_get(:KEY_EQUAL), :lower],
+      '+' => [Makita.const_get(:KEY_EQUAL), :upper],
+      '[' => [Makita.const_get(:KEY_LEFTBRACE), :lower],
+      '{' => [Makita.const_get(:KEY_LEFTBRACE), :upper],
+      ']' => [Makita.const_get(:KEY_RIGHTBRACE), :lower],
+      '}' => [Makita.const_get(:KEY_RIGHTBRACE), :upper],
+      '\\' => [Makita.const_get(:KEY_BACKSLASH), :lower],
+      '|' => [Makita.const_get(:KEY_BACKSLASH), :upper],
+      ';' => [Makita.const_get(:KEY_SEMICOLON), :lower],
+      ':' => [Makita.const_get(:KEY_SEMICOLON), :upper],
+      "'" => [Makita.const_get(:KEY_APOSTROPHE), :lower],
+      '"' => [Makita.const_get(:KEY_APOSTROPHE), :upper],
+      ',' => [Makita.const_get(:KEY_COMMA), :lower],
+      '<' => [Makita.const_get(:KEY_COMMA), :upper],
+      '.' => [Makita.const_get(:KEY_DOT), :lower],
+      '>' => [Makita.const_get(:KEY_DOT), :upper],
+      '/' => [Makita.const_get(:KEY_SLASH), :lower],
+      '?' => [Makita.const_get(:KEY_SLASH), :upper],
+      "\n" => [Makita.const_get(:KEY_ENTER), :lower],
+      "\t" => [Makita.const_get(:KEY_TAB), :lower],
+    })
   end
 end
 
