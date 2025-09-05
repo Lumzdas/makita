@@ -53,27 +53,27 @@ pub async fn start_monitoring_udev(config_files: Vec<Config>, mut tasks: Vec<Joi
         match event {
           Some(Ok(event)) => {
             if is_mapped(&event.device(), &config_files) {
-              println!("---------------------\n\nReinitializing...\n");
+              println!("[UdevMonitor] Reinitializing...");
               for task in &tasks { task.abort(); }
               tasks.clear();
               launch_tasks(&config_files, &mut tasks, environment.clone())
             }
           }
           Some(Err(e)) => {
-            eprintln!("Udev monitor error: {}", e);
+            eprintln!("[UdevMonitor] Udev monitor error: {}", e);
           }
           None => {
-            println!("Udev monitor ended");
+            println!("[UdevMonitor] Udev monitor ended");
             break;
           }
         }
       }
 
       _ = sigint.recv() => {
-        println!("\nReceived SIGINT, shutting down...");
+        println!("[UdevMonitor] Received SIGINT, shutting down...");
         for task in tasks.drain(..) { task.abort(); }
 
-        println!("All tasks stopped. Exiting...");
+        println!("[UdevMonitor] All tasks stopped. Exiting...");
         break;
       }
     }
@@ -89,20 +89,20 @@ pub fn launch_tasks(
   let modifier_was_activated: Arc<Mutex<bool>> = Arc::new(Mutex::new(true));
   let user_has_access = match Command::new("groups").output() {
     Ok(groups) if std::str::from_utf8(&groups.stdout.as_slice()).unwrap().contains("input") => {
-      println!("Evdev permissions available.\nScanning for event devices with a matching config file...\n");
+      println!("[UdevMonitor] Evdev permissions available. Scanning for event devices with a matching config file...");
       true
     },
     Ok(groups) if std::str::from_utf8(&groups.stdout.as_slice()).unwrap().contains("root") => {
-      println!("Root permissions available.\nScanning for event devices with a matching config file...\n");
+      println!("[UdevMonitor] Root permissions available. Scanning for event devices with a matching config file...");
       true
     },
     Ok(_) => {
-      println!("Warning: user has no access to event devices, Makita might not be able to detect all connected devices.\n\
-                Note: Run Makita with 'sudo -E makita' or as a system service. Refer to the docs for more info. Continuing...\n");
+      println!("[UdevMonitor] Warning: user has no access to event devices, Makita might not be able to detect all connected devices. \
+                Note: Run Makita with 'sudo -E makita' or as a system service. Refer to the docs for more info. Continuing...");
       false
     },
     Err(_) => {
-      println!("Warning: unable to determine if user has access to event devices. Continuing...\n");
+      println!("[UdevMonitor] Warning: unable to determine if user has access to event devices. Continuing...");
       false
     }
   };
@@ -131,12 +131,12 @@ pub fn launch_tasks(
             } else if let Ok(layout) = split_config_name[2].parse::<u16>() {
               (Client::Class(split_config_name[1].to_string()), layout)
             } else {
-              println!("Warning: unable to parse layout number in {}, treating it as default.", config.name);
+              println!("[UdevMonitor] Warning: unable to parse layout number in {}, treating it as default.", config.name);
               (Client::Default, 0)
             }
           }
           _ => {
-            println!("Warning: too many arguments in config file name {}, treating it as default.", config.name);
+            println!("[UdevMonitor] Warning: too many arguments in config file name {}, treating it as default.", config.name);
             (Client::Default, 0)
           }
         };
@@ -158,8 +158,8 @@ pub fn launch_tasks(
           Path::new(&event_device),
           config_list.clone(),
         )));
+        println!("[UdevMonitor] Constructing reader for {} ({})...", device.0.to_str().unwrap(), device.1.name().unwrap());
         let virt_dev = Arc::new(Mutex::new(VirtualDevices::new(device.1)));
-        println!("Constructing reader for {}...", device.0.to_str().unwrap());
         let reader = EventReader::new(
           config_list.clone(),
           virt_dev.clone(),
@@ -170,7 +170,7 @@ pub fn launch_tasks(
         );
 
         if let Some(ruby_service) = reader.get_ruby_service() {
-          println!("Creating EventSender for {}...", device.0.to_str().unwrap());
+          println!("[UdevMonitor] Creating EventSender for {}...", device.0.to_str().unwrap());
           let event_sender = EventSender::new(ruby_service, virt_dev.clone());
           tasks.push(tokio::spawn(start_event_sender(event_sender)));
         }
@@ -182,9 +182,9 @@ pub fn launch_tasks(
   }
 
   if devices_found == 0 && !user_has_access {
-    println!("No matching devices found.\nNote: make sure that your user has access to event devices.\n");
+    println!("[UdevMonitor] No matching devices found. Note: make sure that your user has access to event devices.");
   } else if devices_found == 0 && user_has_access {
-    println!("No matching devices found.\nNote: double-check that your device and its associated config file have the same name, as reported by 'evtest'.\n");
+    println!("[UdevMonitor] No matching devices found. Note: double-check that your device and its associated config file have the same name, as reported by 'evtest'.");
   }
 }
 
@@ -194,7 +194,7 @@ pub async fn start_reader(reader: EventReader) {
 
 pub async fn start_event_sender(event_sender: EventSender) {
   if let Err(e) = event_sender.start().await {
-    eprintln!("EventSender error: {}", e);
+    eprintln!("[UdevMonitor] EventSender error: {}", e);
   }
 }
 
@@ -209,8 +209,8 @@ fn set_environment() -> Environment {
         env::set_var("DBUS_SESSION_BUS_ADDRESS", bus_address);
         copy_variables()
       } else {
-        println!("Warning: unable to inherit user environment.\n\
-                  Launch Makita with 'sudo -E makita' or make sure that your systemd unit is running with the 'User=<username>' parameter.\n");
+        println!("[UdevMonitor] Warning: unable to inherit user environment. \
+                  Launch Makita with 'sudo -E makita' or make sure that your systemd unit is running with the 'User=<username>' parameter.");
       }
     }
   };
@@ -231,34 +231,34 @@ fn set_environment() -> Environment {
         if desktop == String::from("KDE") {
           if let Err(_) = Command::new("kdotool").output() {
             println!(
-              "Running on KDE but kdotool doesn't seem to be installed.\n\
-               Won't be able to change bindings according to the active window.\n"
+              "[UdevMonitor] Running on KDE but kdotool doesn't seem to be installed. \
+               Won't be able to change bindings according to the active window."
             );
             break 'a Server::Unsupported;
           }
         }
-        println!("Running on {}, per application bindings enabled.", desktop);
+        println!("[UdevMonitor] Running on {}, per application bindings enabled.", desktop);
         Server::Connected(desktop.clone())
       };
       server
     },
     (Ok(session), Ok(desktop)) if session == wayland => {
-      println!("Warning: unsupported compositor: {}, won't be able to change bindings according to the active window.\n\
-                Currently supported desktops: Hyprland, Sway, Niri, Plasma/KWin, X11.\n", desktop);
+      println!("[UdevMonitor] Warning: unsupported compositor: {}, won't be able to change bindings according to the active window. \
+                Currently supported desktops: Hyprland, Sway, Niri, Plasma/KWin, X11.", desktop);
       Server::Unsupported
     },
     (Ok(session), _) if session == x11 => {
-      println!("Running on X11, per application bindings enabled.");
+      println!("[UdevMonitor] Running on X11, per application bindings enabled.");
       Server::Connected(session)
     },
     (Ok(session), Err(_)) if session == wayland => {
-      println!("Warning: unable to retrieve the current desktop based on XDG_CURRENT_DESKTOP env var.\n\
-                Won't be able to change bindings according to the active window.\n");
+      println!("[UdevMonitor] Warning: unable to retrieve the current desktop based on XDG_CURRENT_DESKTOP env var. \
+                Won't be able to change bindings according to the active window.");
       Server::Unsupported
     },
     (Err(_), _) => {
-      println!("Warning: unable to retrieve the session type based on XDG_SESSION_TYPE or WAYLAND_DISPLAY env vars.\n\
-                Is your Wayland compositor or X server running?\n\
+      println!("[UdevMonitor] Warning: unable to retrieve the session type based on XDG_SESSION_TYPE or WAYLAND_DISPLAY env vars. \
+                Is your Wayland compositor or X server running? \
                 Exiting Makita.");
       std::process::exit(0);
     },
@@ -274,7 +274,7 @@ fn set_environment() -> Environment {
 
 fn copy_variables() {
   let command = Command::new("sh").arg("-c").arg("systemctl --user show-environment").output().unwrap();
-  let vars = std::str::from_utf8(command.stdout.as_slice()).unwrap().split("\n").collect::<Vec<&str>>();
+  let vars = std::str::from_utf8(command.stdout.as_slice()).unwrap().split("").collect::<Vec<&str>>();
 
   for var in vars {
     if let Some((variable, value)) = var.split_once("=") {

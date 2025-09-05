@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 async fn main() {
   let config_path = match env::var("MAKITA_CONFIG") {
     Ok(path) => {
-      println!("\nMAKITA_CONFIG set to {:?}.\n", path);
+      println!("MAKITA_CONFIG set to {:?}.", path);
       match std::fs::read_dir(path) {
         Ok(dir) => dir,
         _ => {
@@ -35,7 +35,7 @@ async fn main() {
       };
       let default_config_path = format!("{}/.config/makita", user_home);
       println!(
-        "\nMAKITA_CONFIG environment variable is not set, defaulting to {:?}.\n",
+        "MAKITA_CONFIG environment variable is not set, defaulting to {:?}.",
         default_config_path
       );
       match std::fs::read_dir(default_config_path) {

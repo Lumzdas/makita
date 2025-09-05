@@ -135,7 +135,7 @@ pub struct RawConfig {
 
 impl RawConfig {
   fn new_from_file(file: &str) -> Self {
-    println!("Parsing config file:\n{:?}\n", file.rsplit_once("/").unwrap().1);
+    println!("[Config] Parsing config file: {:?}", file.rsplit_once("/").unwrap().1);
 
     let file_content: String = std::fs::read_to_string(file).unwrap();
     let raw_config: RawConfig = toml::from_str(&file_content).expect("Couldn't parse config file.");
@@ -254,7 +254,7 @@ pub fn parse_modifiers(settings: &HashMap<String, String>, parameter: &str) -> V
         } else if let Ok(axis) = Axis::from_str(modifier) {
           custom_modifiers.push(Event::Axis(axis));
         } else {
-          println!("Invalid value used as modifier in {}, ignoring.", parameter);
+          println!("[Config] Invalid value used as modifier in {}, ignoring.", parameter);
         }
       }
       custom_modifiers

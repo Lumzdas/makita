@@ -143,11 +143,11 @@ impl EventReader {
     // Initialize Ruby service and load scripts from config
     let ruby_service = {
       // Clone references for the state handler closure
-      println!("Initializing Ruby service...");
+      println!("[EventReader] Initializing Ruby service...");
       let modifiers_ref = Arc::clone(&modifiers);
-      println!("Modifiers reference cloned.");
+      println!("[EventReader] Modifiers reference cloned.");
       let device_connected_ref = Arc::clone(&device_is_connected);
-      println!("Device connection reference cloned.");
+      println!("[EventReader] Device connection reference cloned.");
 
       let service = RubyService::new(move |query| {
         use crate::ruby_runtime::{StateQuery, StateResponse};
@@ -165,7 +165,7 @@ impl EventReader {
         for (_event, modifier_map) in &cfg.bindings.rubies {
           for (_modifiers, script_name) in modifier_map {
             if let Ok(ruby_scripts_path) = std::env::var("MAKITA_RUBY_SCRIPTS") {
-              println!("Loading Ruby script: {}", script_name);
+              println!("[EventReader] Loading Ruby script: {}", script_name);
               let script_path = format!("{}/{}.rb", ruby_scripts_path, script_name);
               let _ = service.load_script(script_name.clone(), script_path);
               has_scripts = true;
@@ -176,9 +176,9 @@ impl EventReader {
 
       // Start the Ruby event loop if we have scripts
       if has_scripts {
-        println!("Starting Ruby event loop...");
+        println!("[EventReader] Starting Ruby event loop...");
         service.start_event_loop().expect("Failed to start Ruby event loop");
-        println!("Ruby service initialized.");
+        println!("[EventReader] Ruby service initialized.");
         Some(Arc::new(Mutex::new(service)))
       } else {
         None
@@ -205,7 +205,7 @@ impl EventReader {
   }
 
   pub async fn start(&self) {
-    println!("{:?} detected, reading events.\n", self.current_config.lock().await.name);
+    println!("[EventReader] {:?} detected, reading events.", self.current_config.lock().await.name);
 
     tokio::join!(
       self.event_loop(),
@@ -245,11 +245,11 @@ impl EventReader {
       let event = match stream.next().await {
         Some(Ok(event)) => event,
         Some(Err(e)) => {
-          eprintln!("Error reading event: {}", e);
+          eprintln!("[EventReader] Error reading event: {}", e);
           continue;
         }
         None => {
-          println!("Event stream ended");
+          println!("[EventReader] Event stream ended");
           break;
         }
       };
@@ -597,10 +597,7 @@ impl EventReader {
     let mut device_is_connected = self.device_is_connected.lock().await;
     *device_is_connected = false;
 
-    println!(
-      "Disconnected device \"{}\".\n",
-      self.current_config.lock().await.name
-    );
+    println!("[EventReader] Disconnected device \"{}\".", self.current_config.lock().await.name);
   }
 
   async fn convert_event(
@@ -621,7 +618,7 @@ impl EventReader {
       if let Some(map) = config.bindings.rubies.get(&event) {
         if map.get(&modifiers).is_some() {
           let script = map.get(&modifiers).unwrap();
-          println!("Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
+          println!("[EventReader] Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
           let physical_event = crate::ruby_runtime::PhysicalEvent {
             script: script.to_string(),
             event_type: default_event.event_type().0,

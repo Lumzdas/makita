@@ -85,22 +85,22 @@ impl RubyService {
     let ruby = &*cleanup;
 
     if let Err(e) = Self::setup_ruby_environment(ruby) {
-      eprintln!("[Ruby runtime] Failed to setup Ruby environment: {}", e);
+      eprintln!("[RubyRuntime] Failed to setup Ruby environment: {}", e);
       std::process::exit(1);
     }
 
     for command in command_receiver {
-      println!("[Ruby runtime] Received command: {:?}", command);
+      println!("[RubyRuntime] Received command: {:?}", command);
       match command {
         RubyCommand::LoadScript { name, path } => {
           let script = format!("$makita_runtime.load_script('{}', '{}')", name, path);
           if let Err(e) = ruby.eval::<Value>(&script) {
-            eprintln!("[Ruby runtime] Failed to load script: {}", e);
+            eprintln!("[RubyRuntime] Failed to load script: {}", e);
           }
         }
         RubyCommand::StartEventLoop => {
           if let Err(e) = ruby.eval::<Value>("$makita_runtime.start_event_loop") {
-            eprintln!("[Ruby runtime] Failed to start event loop: {}", e);
+            eprintln!("[RubyRuntime] Failed to start event loop: {}", e);
           }
         }
       }
@@ -136,13 +136,13 @@ impl RubyService {
   }
 
   pub fn start_event_loop(&self) -> Result<(), Box<dyn std::error::Error>> {
-    println!("[Ruby runtime] Starting event loop...");
+    println!("[RubyRuntime] Starting event loop...");
     self.command_sender.send(RubyCommand::StartEventLoop)?;
     Ok(())
   }
 
   pub fn load_script(&self, name: String, path: String) -> Result<(), Box<dyn std::error::Error>> {
-    println!("[Ruby runtime] Loading script: {} from {}", name, path);
+    println!("[RubyRuntime] Loading script: {} from {}", name, path);
     self.command_sender.send(RubyCommand::LoadScript { name, path })?;
     Ok(())
   }
