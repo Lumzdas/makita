@@ -9,8 +9,6 @@ use crate::udev_monitor::*;
 use config::Config;
 use std::env;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 use tokio;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -57,10 +55,6 @@ async fn main() {
     }
   }
 
-
-
-
-
   let ruby_scripts_directory = match env::var("MAKITA_RUBY_SCRIPTS") {
     Ok(directory) => directory,
     _ => {
@@ -99,7 +93,7 @@ fn start_ruby_service(rubies: Vec<(String, String)>) -> Option<Arc<Mutex<RubySer
   let service = RubyService::new(move |query| {
     use crate::ruby_runtime::{StateQuery, StateResponse};
     match query {
-      StateQuery::KeyState(key_code) => {
+      StateQuery::KeyState(_key_code) => {
         // TODO: implement
         StateResponse::KeyState(false)
       }

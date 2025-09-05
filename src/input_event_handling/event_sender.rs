@@ -69,10 +69,6 @@ impl EventSender {
         virtual_devices.axis.emit(&[input_event])?;
         println!("[EventSender] Sent RELATIVE event: code={}, value={}", synthetic_event.code, synthetic_event.value);
       }
-      EventType::ABSOLUTE => {
-        virtual_devices.abs.emit(&[input_event])?;
-        println!("[EventSender] Sent ABSOLUTE event: code={}, value={}", synthetic_event.code, synthetic_event.value);
-      }
       EventType::SWITCH => {
         virtual_devices.keys.emit(&[input_event])?;
         println!("[EventSender] Sent SWITCH event: code={}, value={}", synthetic_event.code, synthetic_event.value);

@@ -1,5 +1,5 @@
 use crate::active_client::*;
-use crate::config::{parse_modifiers, Associations, Axis, Cursor, Event, Relative, Scroll};
+use crate::config::{Associations, Axis, Cursor, Event, Relative, Scroll};
 use crate::ruby_runtime::{RubyService};
 use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
@@ -17,24 +17,13 @@ use tokio_stream::StreamExt;
 
 struct Stick {
   function: String,
-  sensitivity: u64,
   deadzone: i32,
-  activation_modifiers: Vec<Event>,
-}
-
-struct Movement {
-  speed: i32,
-  acceleration: f32,
 }
 
 struct Settings {
   lstick: Stick,
   rstick: Stick,
-  invert_cursor_axis: bool,
-  invert_scroll_axis: bool,
   axis_16_bit: bool,
-  cursor: Movement,
-  scroll: Movement,
   chain_only: bool,
   layout_switcher: Key,
 }
@@ -49,7 +38,6 @@ pub struct EventReader {
   scroll_movement: Arc<Mutex<(i32, i32)>>,
   modifiers: Arc<Mutex<Vec<Event>>>,
   modifier_was_activated: Arc<Mutex<bool>>,
-  device_is_connected: Arc<Mutex<bool>>,
   active_layout: Arc<Mutex<u16>>,
   current_config: Arc<Mutex<Config>>,
   environment: Environment,
@@ -75,7 +63,6 @@ impl EventReader {
     let rstick_position = Arc::new(Mutex::new(position_vector.clone()));
     let cursor_movement = Arc::new(Mutex::new((0, 0)));
     let scroll_movement = Arc::new(Mutex::new((0, 0)));
-    let device_is_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(true));
     let active_layout: Arc<Mutex<u16>> = Arc::new(Mutex::new(0));
 
     let current_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(
@@ -84,56 +71,28 @@ impl EventReader {
     let settings = config.iter().find(|&x| x.associations == Associations::default()).unwrap().settings.clone();
 
     let lstick_function = settings.get("LSTICK").unwrap_or(&"cursor".to_string()).to_string();
-    let lstick_sensitivity: u64 = settings.get("LSTICK_SENSITIVITY").unwrap_or(&"0".to_string()).parse::<u64>().expect("Invalid LSTICK_SENSITIVITY, use integer >= 0");
     let lstick_deadzone: i32 = settings.get("LSTICK_DEADZONE").unwrap_or(&"5".to_string()).parse::<i32>().expect("Invalid LSTICK_DEADZONE, use integer 0 to 128.");
-    let lstick_activation_modifiers: Vec<Event> = parse_modifiers(&settings, "LSTICK_ACTIVATION_MODIFIERS");
     let lstick = Stick {
       function: lstick_function,
-      sensitivity: lstick_sensitivity,
       deadzone: lstick_deadzone,
-      activation_modifiers: lstick_activation_modifiers,
     };
 
     let rstick_function: String = settings.get("RSTICK").unwrap_or(&"scroll".to_string()).to_string();
-    let rstick_sensitivity: u64 = settings.get("RSTICK_SENSITIVITY").unwrap_or(&"0".to_string()).parse::<u64>().expect("Invalid RSTICK_SENSITIVITY, use integer >= 0");
     let rstick_deadzone: i32 = settings.get("RSTICK_DEADZONE").unwrap_or(&"5".to_string()).parse::<i32>().expect("Invalid RSTICK_DEADZONE, use integer 0 to 128.");
-    let rstick_activation_modifiers: Vec<Event> = parse_modifiers(&settings, "RSTICK_ACTIVATION_MODIFIERS");
     let rstick = Stick {
       function: rstick_function,
-      sensitivity: rstick_sensitivity,
       deadzone: rstick_deadzone,
-      activation_modifiers: rstick_activation_modifiers,
     };
 
     let axis_16_bit: bool = settings.get("16_BIT_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid 16_BIT_AXIS use true/false.");
     let chain_only: bool = settings.get("CHAIN_ONLY").unwrap_or(&"true".to_string()).parse().expect("Invalid CHAIN_ONLY use true/false.");
-    let invert_cursor_axis: bool = settings.get("INVERT_CURSOR_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid INVERT_CURSOR_AXIS use true/false.");
-    let invert_scroll_axis: bool = settings.get("INVERT_SCROLL_AXIS").unwrap_or(&"false".to_string()).parse().expect("Invalid INVERT_SCROLL_AXIS use true/false.");
-    let cursor_speed: i32 = settings.get("CURSOR_SPEED").unwrap_or(&"0".to_string()).parse().expect("Invalid CURSOR_SPEED, use integer.");
-    let cursor_acceleration: f32 = settings.get("CURSOR_ACCEL").unwrap_or(&"1".to_string()).parse().expect("Invalid CURSOR_ACCEL, use float 0 to 1.");
-    let scroll_speed: i32 = settings.get("SCROLL_SPEED").unwrap_or(&"0".to_string()).parse().expect("Invalid SCROLL_SPEED, use integer.");
-    let scroll_acceleration: f32 = settings.get("SCROLL_ACCEL").unwrap_or(&"1".to_string()).parse().expect("Invalid SCROLL_ACCEL, use float 0 to 1.");
-
-    let cursor = Movement {
-      speed: cursor_speed,
-      acceleration: cursor_acceleration,
-    };
-
-    let scroll = Movement {
-      speed: scroll_speed,
-      acceleration: scroll_acceleration,
-    };
 
     let layout_switcher: Key = Key::from_str(settings.get("LAYOUT_SWITCHER").unwrap_or(&"BTN_0".to_string())).expect("LAYOUT_SWITCHER is not a valid Key.");
 
     let settings = Settings {
       lstick,
       rstick,
-      invert_cursor_axis,
-      invert_scroll_axis,
       axis_16_bit,
-      cursor,
-      scroll,
       chain_only,
       layout_switcher,
     };
@@ -148,7 +107,6 @@ impl EventReader {
       scroll_movement,
       modifiers,
       modifier_was_activated,
-      device_is_connected,
       active_layout,
       current_config,
       environment,
@@ -162,15 +120,11 @@ impl EventReader {
 
     tokio::join!(
       self.event_loop(),
-      self.loop_2d("cursor", self.settings.invert_cursor_axis, 0, 1),
-      self.loop_2d("scroll", self.settings.invert_scroll_axis, 12, 11),
-      self.key_loop_2d(&self.settings.cursor, &self.cursor_movement, 0, 1),
-      self.key_loop_2d(&self.settings.scroll, &self.scroll_movement, 12, 11),
+      // self.loop_2d("cursor", self.settings.invert_cursor_axis, 0, 1),
+      // self.loop_2d("scroll", self.settings.invert_scroll_axis, 12, 11),
+      // self.key_loop_2d(&self.settings.cursor, &self.cursor_movement, 0, 1),
+      // self.key_loop_2d(&self.settings.scroll, &self.scroll_movement, 12, 11),
     );
-  }
-
-  pub fn get_ruby_service(&self) -> Option<Arc<Mutex<RubyService>>> {
-    self.ruby_service.clone()
   }
 
   pub async fn event_loop(&self) {
@@ -444,8 +398,6 @@ impl EventReader {
         _ => self.emit_default_event(event).await,
       }
     }
-    let mut device_is_connected = self.device_is_connected.lock().await;
-    *device_is_connected = false;
 
     println!("[EventReader] Disconnected device \"{}\".", self.current_config.lock().await.name);
   }
@@ -724,84 +676,5 @@ impl EventReader {
         }
       };
     })
-  }
-
-  async fn loop_2d(&self, subject: &str, invert_axis: bool, event_x_id: u16, event_y_id: u16) {
-    let (direction, sensitivity, activation_modifiers) =
-      if self.settings.lstick.function.as_str() == subject {
-        ("left", self.settings.lstick.sensitivity, &self.settings.lstick.activation_modifiers)
-      } else if self.settings.rstick.function.as_str() == subject {
-        ("right", self.settings.rstick.sensitivity, &self.settings.rstick.activation_modifiers)
-      } else {
-        ("disabled", 0, &vec![])
-      };
-
-    if sensitivity != 0 {
-      while *self.device_is_connected.lock().await {
-        let stick_position = if direction == "left" {
-          self.lstick_position.lock().await
-        } else if direction == "right" {
-          self.rstick_position.lock().await
-        } else {
-          break;
-        };
-        if stick_position[0] != 0 || stick_position[1] != 0 {
-          let modifiers = self.modifiers.lock().await;
-          if activation_modifiers.len() == 0 || *activation_modifiers == *modifiers {
-            let (x_coord, y_coord) = if invert_axis {
-              (-stick_position[0], -stick_position[1])
-            } else {
-              (stick_position[0], stick_position[1])
-            };
-            let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_x_id, x_coord);
-            let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_y_id, y_coord);
-            let mut virt_dev = self.virt_dev.lock().await;
-            virt_dev.axis.emit(&[virtual_event_x]).unwrap();
-            virt_dev.axis.emit(&[virtual_event_y]).unwrap();
-          }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(sensitivity)).await;
-      }
-    }
-  }
-
-  async fn key_loop_2d(&self, subject_settings: &Movement, movement: &Arc<Mutex<(i32, i32)>>, event_x_id: u16, event_y_id: u16) {
-    let (speed, acceleration, mut current_speed) = (
-      if subject_settings.speed == 0 {
-        return;
-      } else {
-        subject_settings.speed
-      },
-      if subject_settings.acceleration.abs() > 1.0 {
-        1.0
-      } else {
-        subject_settings.acceleration.abs()
-      },
-      subject_settings.speed as f32,
-    );
-
-    while *self.device_is_connected.lock().await {
-      let locked_movement = movement.lock().await;
-      if *locked_movement == (0, 0) {
-        current_speed = 0.0
-      } else {
-        current_speed += speed as f32 * acceleration / 10.0;
-        if current_speed > speed as f32 {
-          current_speed = speed as f32
-        }
-        if locked_movement.0 != 0 {
-          let mut virt_dev = self.virt_dev.lock().await;
-          let virtual_event_x: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_x_id, locked_movement.0 * current_speed as i32);
-          virt_dev.axis.emit(&[virtual_event_x]).unwrap();
-        }
-        if locked_movement.1 != 0 {
-          let mut virt_dev = self.virt_dev.lock().await;
-          let virtual_event_y: InputEvent = InputEvent::new_now(EventType::RELATIVE, event_y_id, locked_movement.1 * current_speed as i32);
-          virt_dev.axis.emit(&[virtual_event_y]).unwrap();
-        }
-      }
-    }
-
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
   }
 }
