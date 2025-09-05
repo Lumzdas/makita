@@ -1,6 +1,6 @@
 mod active_client;
 mod config;
-mod magnus_ruby_runtime;
+mod ruby_runtime;
 mod udev_monitor;
 mod virtual_devices;
 mod input_event_handling;

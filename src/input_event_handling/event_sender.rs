@@ -1,4 +1,4 @@
-use crate::magnus_ruby_runtime::{MagnusRubyService, SyntheticEvent};
+use crate::ruby_runtime::{RubyService, SyntheticEvent};
 use crate::virtual_devices::VirtualDevices;
 use evdev::{EventType, InputEvent};
 use std::sync::Arc;
@@ -6,13 +6,13 @@ use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
 pub struct EventSender {
-  ruby_service: Arc<Mutex<MagnusRubyService>>,
+  ruby_service: Arc<Mutex<RubyService>>,
   virtual_devices: Arc<Mutex<VirtualDevices>>,
   running: Arc<Mutex<bool>>,
 }
 
 impl EventSender {
-  pub fn new(ruby_service: Arc<Mutex<MagnusRubyService>>, virtual_devices: Arc<Mutex<VirtualDevices>>) -> Self {
+  pub fn new(ruby_service: Arc<Mutex<RubyService>>, virtual_devices: Arc<Mutex<VirtualDevices>>) -> Self {
     Self {
       ruby_service,
       virtual_devices,

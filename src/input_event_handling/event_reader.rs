@@ -1,6 +1,6 @@
 use crate::active_client::*;
 use crate::config::{parse_modifiers, Associations, Axis, Cursor, Event, Relative, Scroll};
-use crate::magnus_ruby_runtime::{MagnusRubyService};
+use crate::ruby_runtime::{RubyService};
 use crate::udev_monitor::Environment;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
@@ -55,7 +55,7 @@ pub struct EventReader {
   current_config: Arc<Mutex<Config>>,
   environment: Environment,
   settings: Settings,
-  ruby_service: Option<Arc<Mutex<MagnusRubyService>>>,
+  ruby_service: Option<Arc<Mutex<RubyService>>>,
 }
 
 impl EventReader {
@@ -149,8 +149,8 @@ impl EventReader {
       let device_connected_ref = Arc::clone(&device_is_connected);
       println!("Device connection reference cloned.");
 
-      let service = MagnusRubyService::new(move |query| {
-        use crate::magnus_ruby_runtime::{StateQuery, StateResponse};
+      let service = RubyService::new(move |query| {
+        use crate::ruby_runtime::{StateQuery, StateResponse};
         match query {
           StateQuery::KeyState(key_code) => {
             // For now, return false - could be enhanced to track actual key states
@@ -235,7 +235,7 @@ impl EventReader {
     );
   }
 
-  pub fn get_ruby_service(&self) -> Option<Arc<Mutex<MagnusRubyService>>> {
+  pub fn get_ruby_service(&self) -> Option<Arc<Mutex<RubyService>>> {
     self.ruby_service.clone()
   }
 
@@ -641,7 +641,7 @@ impl EventReader {
         if map.get(&modifiers).is_some() {
           let script = map.get(&modifiers).unwrap();
           println!("Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
-          let physical_event = crate::magnus_ruby_runtime::PhysicalEvent {
+          let physical_event = crate::ruby_runtime::PhysicalEvent {
             script: script.to_string(),
             event_type: default_event.event_type().0,
             code: default_event.code(),

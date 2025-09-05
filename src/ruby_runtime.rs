@@ -43,7 +43,7 @@ pub enum StateResponse {
   DeviceConnected(bool),
 }
 
-pub struct MagnusRubyService {
+pub struct RubyService {
   command_sender: Sender<RubyCommand>,
   synthetic_receiver: Arc<Mutex<Receiver<SyntheticEvent>>>,
   state_handler: Arc<dyn Fn(StateQuery) -> StateResponse + Send + Sync>,
@@ -54,8 +54,8 @@ static mut SYNTHETIC_SENDER: Option<Arc<Mutex<Sender<SyntheticEvent>>>> = None;
 static mut STATE_HANDLER: Option<Arc<dyn Fn(StateQuery) -> StateResponse + Send + Sync>> = None;
 static mut EVENT_QUEUE: Option<Arc<Mutex<Vec<PhysicalEvent>>>> = None;
 
-impl MagnusRubyService {
-  pub fn new<F>(state_handler: F) -> Result<MagnusRubyService, Box<dyn std::error::Error>>
+impl RubyService {
+  pub fn new<F>(state_handler: F) -> Result<RubyService, Box<dyn std::error::Error>>
   where
     F: Fn(StateQuery) -> StateResponse + Send + Sync + 'static,
   {
@@ -77,7 +77,7 @@ impl MagnusRubyService {
       Self::ruby_thread_main(command_receiver);
     });
 
-    Ok(MagnusRubyService {
+    Ok(RubyService {
       command_sender,
       synthetic_receiver,
       state_handler,
@@ -123,7 +123,7 @@ impl MagnusRubyService {
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/timeouts.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/fiber_scheduler.rb"))?;
 
-    let _: Value = ruby.eval(include_str!("../ruby/magnus_event_loop.rb"))?;
+    let _: Value = ruby.eval(include_str!("../ruby/event_loop.rb"))?;
     let _: Value = ruby.eval(include_str!("../ruby/event_codes.rb"))?;
 
     let _: Value = ruby.eval(format!("Makita.const_set(:EVENT_TYPE_KEY, {})", EventType::KEY.0).as_str())?;
@@ -270,7 +270,7 @@ mod tests {
 
   #[test]
   fn test_magnus_ruby_service_creation() {
-    let service = MagnusRubyService::new(|query| match query {
+    let service = RubyService::new(|query| match query {
       StateQuery::KeyState(_) => StateResponse::KeyState(false),
       StateQuery::ModifierState => StateResponse::ModifierState(vec![]),
       StateQuery::DeviceConnected => StateResponse::DeviceConnected(true),
@@ -281,7 +281,7 @@ mod tests {
 
   #[test]
   fn test_command_sending() {
-    let service = MagnusRubyService::new(|query| match query {
+    let service = RubyService::new(|query| match query {
       StateQuery::KeyState(_) => StateResponse::KeyState(false),
       StateQuery::ModifierState => StateResponse::ModifierState(vec![]),
       StateQuery::DeviceConnected => StateResponse::DeviceConnected(true),
@@ -310,7 +310,7 @@ mod tests {
 
   #[test]
   fn test_synthetic_event_reception() {
-    let service = MagnusRubyService::new(|query| match query {
+    let service = RubyService::new(|query| match query {
       StateQuery::KeyState(_) => StateResponse::KeyState(false),
       StateQuery::ModifierState => StateResponse::ModifierState(vec![]),
       StateQuery::DeviceConnected => StateResponse::DeviceConnected(true),
