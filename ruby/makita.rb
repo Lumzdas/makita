@@ -22,6 +22,8 @@ module Makita
 
     def press(key_code)
       send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_DOWN)
+      yield if block_given?
+    ensure
       send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_UP)
     end
 
@@ -50,9 +52,9 @@ module Makita
           press(key_code)
           sleep(delay_seconds) if delay_seconds > 0
         in [key_code, :upper]
-          press_down(const_get("KEY_LEFTSHIFT"))
-          press(key_code)
-          release(const_get("KEY_LEFTSHIFT"))
+          press(const_get("KEY_LEFTSHIFT")) do
+            press(key_code)
+          end
           sleep(delay_seconds) if delay_seconds > 0
         else
           makita_log("warn", "No keycode mapping for character: #{char}")
