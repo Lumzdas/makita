@@ -1,4 +1,8 @@
 module Makita
+  # space for storing variables between scripts
+  @@stuff = {}
+  def self.stuff = @@stuff
+
   KEY_VALUE_UP = 0
   KEY_VALUE_DOWN = 1
   KEY_VALUE_HOLD = 2
@@ -28,7 +32,11 @@ module Makita
     end
 
     def release(key_code)
-      send_synthetic_event(1, key_code, KEY_VALUE_UP)
+      send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_UP)
+    end
+
+    def pass(event)
+      send_synthetic_event(event.event_type, event.code, event.value)
     end
 
     def get_key_state(key_code)
