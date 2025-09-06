@@ -45,16 +45,14 @@ module Makita
       makita_query_state("KeyState", key_code) == "true"
     end
 
-    def print_text(string, delay_seconds: 0)
+    def type_text(string, delay_seconds: 0)
       string.each_char do |char|
         case char_to_keycode(char)
         in [key_code, :lower]
           press(key_code)
           sleep(delay_seconds) if delay_seconds > 0
         in [key_code, :upper]
-          press(const_get("KEY_LEFTSHIFT")) do
-            press(key_code)
-          end
+          press(KEY_LEFTSHIFT) { press(key_code) }
           sleep(delay_seconds) if delay_seconds > 0
         else
           makita_log("warn", "No keycode mapping for character: #{char}")
