@@ -11,8 +11,8 @@ use std::{
   pin::Pin,
   str::FromStr,
   sync::Arc,
+  sync::Mutex,
 };
-use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 
 struct Stick {
@@ -30,7 +30,7 @@ struct Settings {
 
 pub struct EventReader {
   config: Vec<Config>,
-  stream: Arc<Mutex<EventStream>>,
+  physical_input_stream: Arc<Mutex<EventStream>>,
   virtual_devices: Arc<Mutex<VirtualDevices>>,
   lstick_position: Arc<Mutex<Vec<i32>>>,
   rstick_position: Arc<Mutex<Vec<i32>>>,
@@ -49,7 +49,7 @@ impl EventReader {
   pub fn new(
     config: Vec<Config>,
     virtual_devices: Arc<Mutex<VirtualDevices>>,
-    stream: Arc<Mutex<EventStream>>,
+    physical_input_stream: Arc<Mutex<EventStream>>,
     modifiers: Arc<Mutex<Vec<Event>>>,
     modifier_was_activated: Arc<Mutex<bool>>,
     environment: Environment,
@@ -99,7 +99,7 @@ impl EventReader {
 
     Self {
       config,
-      stream,
+      physical_input_stream,
       virtual_devices,
       lstick_position,
       rstick_position,
@@ -115,11 +115,12 @@ impl EventReader {
     }
   }
 
-  pub async fn start(&self) {
-    println!("[EventReader] {} detected, reading events.", self.current_config.lock().await.name);
-    tokio::join!(self.event_loop());
+  pub fn start(&self) {
+    println!("[EventReader] {} detected, reading events.", self.current_config.lock().unwrap().name);
+    self.event_loop();
   }
 
+  #[tokio::main]
   pub async fn event_loop(&self) {
     let (
       mut dpad_values,
@@ -128,8 +129,7 @@ impl EventReader {
       mut triggers_values,
       mut abs_wheel_position,
     ) = ((0, 0), (0, 0), (0, 0), (0, 0), 0);
-    let switcher: Key = self.settings.layout_switcher;
-    let mut stream = self.stream.lock().await;
+    let mut stream = self.physical_input_stream.lock().unwrap();
     let mut max_abs_wheel = 0;
     if let Ok(abs_state) = stream.device().get_abs_state() {
       for state in abs_state {
@@ -153,11 +153,7 @@ impl EventReader {
       };
 
       match (event.event_type(), RelativeAxisType(event.code()), AbsoluteAxisType(event.code()), false) {
-        (EventType::KEY, _, _, _) => match Key(event.code()) {
-          Key::BTN_TL2 | Key::BTN_TR2 => {},
-          key if key == switcher && event.value() == 1 => self.change_active_layout().await,
-          _ => self.convert_event(event, Event::Key(Key(event.code())), event.value(), false).await
-        },
+        (EventType::KEY, _, _, _) => self.convert_event(event, Event::Key(Key(event.code())), event.value(), false).await,
         (EventType::RELATIVE, RelativeAxisType::REL_WHEEL | RelativeAxisType::REL_WHEEL_HI_RES, _, _, ) => match event.value() {
           -1 => self.convert_event(event, Event::Axis(Axis::SCROLL_WHEEL_DOWN), 1, true).await,
           1 => self.convert_event(event, Event::Axis(Axis::SCROLL_WHEEL_UP), 1, true).await,
@@ -231,7 +227,7 @@ impl EventReader {
         (EventType::ABSOLUTE, _, AbsoluteAxisType::ABS_X | AbsoluteAxisType::ABS_Y, false) => match self.settings.lstick.function.as_str() {
           "cursor" | "scroll" => {
             let axis_value = self.get_axis_value(&event, &self.settings.lstick.deadzone).await;
-            let mut lstick_position = self.lstick_position.lock().await;
+            let mut lstick_position = self.lstick_position.lock().unwrap();
             lstick_position[event.code() as usize] = axis_value;
           }
           "bind" => {
@@ -296,7 +292,7 @@ impl EventReader {
         (EventType::ABSOLUTE, _, AbsoluteAxisType::ABS_RX | AbsoluteAxisType::ABS_RY, false) => match self.settings.rstick.function.as_str() {
           "cursor" | "scroll" => {
             let axis_value = self.get_axis_value(&event, &self.settings.rstick.deadzone).await;
-            let mut rstick_position = self.rstick_position.lock().await;
+            let mut rstick_position = self.rstick_position.lock().unwrap();
             rstick_position[event.code() as usize - 3] = axis_value;
           }
           "bind" => {
@@ -392,7 +388,7 @@ impl EventReader {
       }
     }
 
-    println!("[EventReader] Disconnected device \"{}\".", self.current_config.lock().await.name);
+    println!("[EventReader] Disconnected device \"{}\".", self.current_config.lock().unwrap().name);
   }
 
   async fn convert_event(
@@ -402,18 +398,18 @@ impl EventReader {
     value: i32,
     send_zero: bool,
   ) {
-    if value == 1 { self.update_config().await; };
+    // if value == 1 { self.update_config().await; };
 
     // Send physical event to Ruby for async processing
     if let Some(ruby) = &self.ruby_service {
-      let config = self.current_config.lock().await;
-      let modifiers = self.modifiers.lock().await.clone();
+      let config = self.current_config.lock().unwrap();
+      let modifiers = self.modifiers.lock().unwrap().clone();
 
       // Check if there's a Ruby script configured for this event
       if let Some(map) = config.bindings.rubies.get(&event) {
         if map.get(&modifiers).is_some() {
           let script = map.get(&modifiers).unwrap();
-          println!("[EventReader] Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
+          // println!("[EventReader] Sending event to Ruby: {:?}; event_type: {:?}, code: {}, value: {}; script: {}", event, default_event.event_type(), default_event.code(), value, script);
           let physical_event = crate::ruby_runtime::PhysicalEvent {
             script: script.to_string(),
             event_type: default_event.event_type().0,
@@ -423,15 +419,15 @@ impl EventReader {
             timestamp_nsec: default_event.timestamp().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos(),
           };
 
-          let _ = ruby.lock().await.send_event(physical_event);
+          ruby.lock().unwrap().send_event(physical_event);
 
           return;
         }
       }
     }
 
-    let config = self.current_config.lock().await;
-    let modifiers = self.modifiers.lock().await.clone();
+    let config = self.current_config.lock().unwrap();
+    let modifiers = self.modifiers.lock().unwrap().clone();
 
     if let Some(map) = config.bindings.remap.get(&event) {
       if let Some(event_list) = map.get(&modifiers) {
@@ -444,7 +440,7 @@ impl EventReader {
           !modifiers.is_empty(),
         ).await;
         if send_zero {
-          let modifiers = self.modifiers.lock().await.clone();
+          let modifiers = self.modifiers.lock().unwrap().clone();
           self.emit_event(
             event_list,
             0,
@@ -474,7 +470,7 @@ impl EventReader {
       if let Some(event_list) = map.get(&Vec::new()) {
         self.emit_event(event_list, value, &modifiers, &config, true, false).await;
         if send_zero {
-          let modifiers = self.modifiers.lock().await.clone();
+          let modifiers = self.modifiers.lock().unwrap().clone();
           self.emit_event(event_list, 0, &modifiers, &config, true, false).await;
         }
         return;
@@ -493,8 +489,8 @@ impl EventReader {
     release_keys: bool,
     ignore_modifiers: bool,
   ) {
-    let mut virtual_devices = self.virtual_devices.lock().await;
-    let mut modifier_was_activated = self.modifier_was_activated.lock().await;
+    let mut virtual_devices = self.virtual_devices.lock().unwrap();
+    let mut modifier_was_activated = self.modifier_was_activated.lock().unwrap();
     if release_keys && value != 2 {
       let released_keys: Vec<Key> = self.released_keys(&modifiers, &config).await;
       for key in released_keys {
@@ -542,8 +538,8 @@ impl EventReader {
     modifiers: &Vec<Event>,
     config: &Config,
   ) {
-    let mut virtual_devices = self.virtual_devices.lock().await;
-    let mut modifier_was_activated = self.modifier_was_activated.lock().await;
+    let mut virtual_devices = self.virtual_devices.lock().unwrap();
+    let mut modifier_was_activated = self.modifier_was_activated.lock().unwrap();
     if config.mapped_modifiers.all.contains(&event) && value != 2 {
       let released_keys: Vec<Key> = self.released_keys(&modifiers, &config).await;
       for key in released_keys {
@@ -575,15 +571,15 @@ impl EventReader {
 
   async fn emit_default_event(&self, event: InputEvent) {
     match event.event_type() {
-      EventType::KEY => self.virtual_devices.lock().await.keys.emit(&[event]).unwrap(),
-      EventType::RELATIVE => self.virtual_devices.lock().await.axis.emit(&[event]).unwrap(),
+      EventType::KEY => self.virtual_devices.lock().unwrap().keys.emit(&[event]).unwrap(),
+      EventType::RELATIVE => self.virtual_devices.lock().unwrap().axis.emit(&[event]).unwrap(),
       _ => {}
     }
   }
 
   async fn emit_movement(&self, movement: &Relative, value: i32) {
-    let mut cursor_movement = self.cursor_movement.lock().await;
-    let mut scroll_movement = self.scroll_movement.lock().await;
+    let mut cursor_movement = self.cursor_movement.lock().unwrap();
+    let mut scroll_movement = self.scroll_movement.lock().unwrap();
     match movement {
       Relative::Cursor(Cursor::CURSOR_UP) => cursor_movement.1 = -value,
       Relative::Cursor(Cursor::CURSOR_DOWN) => cursor_movement.1 = value,
@@ -609,7 +605,7 @@ impl EventReader {
   }
 
   async fn toggle_modifiers(&self, modifier: Event, value: i32, config: &Config) {
-    let mut modifiers = self.modifiers.lock().await;
+    let mut modifiers = self.modifiers.lock().unwrap();
     if config.mapped_modifiers.all.contains(&modifier) {
       match value {
         1 => {
@@ -634,7 +630,7 @@ impl EventReader {
   }
 
   async fn change_active_layout(&self) {
-    let mut active_layout = self.active_layout.lock().await;
+    let mut active_layout = self.active_layout.lock().unwrap();
     let active_window = get_active_window(&self.environment, &self.config).await;
     loop {
       if *active_layout == 3 {
@@ -648,26 +644,5 @@ impl EventReader {
         break;
       };
     }
-  }
-
-  fn update_config(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-    Box::pin(async move {
-      let active_layout = self.active_layout.lock().await.clone();
-      let active_window = get_active_window(&self.environment, &self.config).await;
-      let associations = Associations {
-        client: active_window,
-        layout: active_layout,
-      };
-      match self.config.iter().find(|&x| x.associations == associations) {
-        Some(config) => {
-          let mut current_config = self.current_config.lock().await;
-          *current_config = config.clone();
-        }
-        None => {
-          self.change_active_layout().await;
-          self.update_config().await;
-        }
-      };
-    })
   }
 }

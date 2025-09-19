@@ -7,11 +7,9 @@ mod input_event_handling;
 
 use crate::udev_monitor::*;
 use config::Config;
-use std::env;
-use std::sync::Arc;
+use std::{env, thread};
+use std::sync::{Arc, Mutex};
 use tokio;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
 use crate::input_event_handling::event_sender::EventSender;
 use crate::ruby_runtime::RubyService;
 use crate::virtual_devices::VirtualDevices;
@@ -79,29 +77,20 @@ async fn main() {
   let ruby_service = start_ruby_service(rubies);
   let virtual_devices = Arc::new(Mutex::new(VirtualDevices::new()));
 
-  let mut tasks: Vec<JoinHandle<()>> = Vec::new();
-  if ruby_service.is_some() {
+  if let Some(service) = ruby_service.clone() {
     println!("Creating EventSender...");
-    let event_sender = EventSender::new(ruby_service.clone().unwrap(), virtual_devices.clone());
-    tasks.push(tokio::spawn(start_event_sender(event_sender)));
+    let event_sender = EventSender::new(service.lock().unwrap().get_synthetic_event_receiver(), virtual_devices.clone());
+    thread::spawn(move || { start_event_sender(event_sender); });
   }
 
-  start_monitoring_udev(configs, tasks, virtual_devices, ruby_service).await;
+  start_monitoring_udev(configs, virtual_devices, ruby_service).await;
 }
 
 fn start_ruby_service(rubies: Vec<(String, String)>) -> Option<Arc<Mutex<RubyService>>> {
   if rubies.is_empty() { return None }
 
   println!("Initializing Ruby service...");
-  let service = RubyService::new(move |query| {
-    use crate::ruby_runtime::{StateQuery, StateResponse};
-    match query {
-      StateQuery::KeyState(_key_code) => {
-        // TODO: implement
-        StateResponse::KeyState(false)
-      }
-    }
-  }).expect("Failed to create Ruby service");
+  let service = RubyService::new().expect("Failed to create Ruby service");
 
   for ruby in rubies {
     println!("Loading Ruby script: {}", ruby.0);
@@ -109,7 +98,7 @@ fn start_ruby_service(rubies: Vec<(String, String)>) -> Option<Arc<Mutex<RubySer
   }
 
   println!("Starting Ruby event loop...");
-  service.start_event_loop().expect("Failed to start Ruby event loop");
+  let _ = service.start_event_loop();
   println!("Ruby service initialized.");
   Some(Arc::new(Mutex::new(service)))
 }

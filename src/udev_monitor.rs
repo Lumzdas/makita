@@ -4,9 +4,8 @@ use crate::input_event_handling::event_sender::EventSender;
 use crate::virtual_devices::VirtualDevices;
 use crate::Config;
 use evdev::{Device, EventStream};
-use std::{env, path::Path, process::Command, sync::Arc};
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
+use std::{env, path::Path, process, process::Command, sync::Arc, sync::Mutex, thread};
+use std::thread::JoinHandle;
 use tokio_stream::StreamExt;
 use tokio::signal;
 use crate::ruby_runtime::RubyService;
@@ -34,11 +33,11 @@ pub struct Environment {
 
 pub async fn start_monitoring_udev(
   config_files: Vec<Config>,
-  mut tasks: Vec<JoinHandle<()>>,
   virtual_devices: Arc<Mutex<VirtualDevices>>,
   ruby_service: Option<Arc<Mutex<RubyService>>>
 ) {
   let environment = set_environment();
+  let mut tasks: Vec<JoinHandle<()>> = Vec::new();
   launch_tasks(&config_files, &mut tasks, virtual_devices.clone(), ruby_service.clone(), environment.clone());
 
   let mut monitor = tokio_udev::AsyncMonitorSocket::new(
@@ -60,7 +59,6 @@ pub async fn start_monitoring_udev(
           Some(Ok(event)) => {
             if is_mapped(&event.device(), &config_files) {
               println!("[UdevMonitor] Reinitializing...");
-              for task in &tasks { task.abort(); }
               tasks.clear();
               launch_tasks(&config_files, &mut tasks, virtual_devices.clone(), ruby_service.clone(), environment.clone())
             }
@@ -77,10 +75,7 @@ pub async fn start_monitoring_udev(
 
       _ = sigint.recv() => {
         println!("[UdevMonitor] Received SIGINT, shutting down...");
-        for task in tasks.drain(..) { task.abort(); }
-
-        println!("[UdevMonitor] All tasks stopped. Exiting...");
-        break;
+        process::exit(0);
       }
     }
   }
@@ -179,7 +174,7 @@ pub fn launch_tasks(
         ruby_service.clone(),
       );
 
-      tasks.push(tokio::spawn(start_reader(reader)));
+      tasks.push(thread::spawn(move || { start_reader(reader); }));
       devices_found += 1;
     }
   }
@@ -191,12 +186,12 @@ pub fn launch_tasks(
   }
 }
 
-pub async fn start_reader(reader: EventReader) {
-  reader.start().await;
+pub fn start_reader(reader: EventReader) {
+  reader.start();
 }
 
-pub async fn start_event_sender(event_sender: EventSender) {
-  if let Err(e) = event_sender.start().await {
+pub fn start_event_sender(event_sender: EventSender) {
+  if let Err(e) = event_sender.start() {
     eprintln!("[UdevMonitor] EventSender error: {}", e);
   }
 }

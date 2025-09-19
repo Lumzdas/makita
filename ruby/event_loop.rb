@@ -28,14 +28,20 @@ class Runtime
 
     Fiber.set_scheduler(FiberScheduler.new)
     Fiber.schedule do
-      while true
+      pipe_read_fd = makita_get_signal_pipe_read_fd
+      makita_log("debug", "Ruby app: Obtained pipe read FD: #{pipe_read_fd}")
+      pipe_io = IO.for_fd(pipe_read_fd, autoclose: false)
+
+      loop do
+        pipe_io.wait_readable
+        pipe_io.read_nonblock(1)
+
         makita_get_events.each do |event_data|
           script_name = event_data['script']
           if script = @scripts[script_name]
             event = Event.new(event_data)
             Fiber.schedule do
               eval(script)
-              makita_log("debug", "Event processed by script: #{script_name}")
             rescue => e
               makita_log("error", "Event processing error in #{script_name}: #{e.message}")
               makita_log("error", "    from #{e.backtrace.first}")
@@ -44,8 +50,6 @@ class Runtime
             makita_log("error", "Script not loaded: #{script_name}")
           end
         end
-
-        sleep 0.001
       end
     end
 

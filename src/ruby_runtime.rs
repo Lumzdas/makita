@@ -1,11 +1,14 @@
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::{thread};
+use std::any::Any;
+use std::os::fd::{AsRawFd, OwnedFd};
+use crossbeam_channel::{unbounded, Sender, Receiver};
 use magnus::{embed, Ruby, Error as MagnusError, define_global_function, function, RHash, RString, Value, RArray};
 use serde::{Deserialize, Serialize};
 use evdev::EventType;
+use nix::libc::pathconf;
+use nix::unistd;
 
-// Commands sent to the Ruby thread
 #[derive(Debug)]
 enum RubyCommand {
   LoadScript { name: String, path: String },
@@ -29,55 +32,82 @@ pub struct SyntheticEvent {
   pub value: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum StateQuery {
-  KeyState(u16),
+lazy_static::lazy_static! {
+  static ref PIPE_FDS: Arc<Mutex<(OwnedFd, OwnedFd)>> = Arc::new(Mutex::new(unistd::pipe().expect("Failed to create pipe")));
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum StateResponse {
-  KeyState(bool),
-}
-
-pub struct RubyService {
-  command_sender: Sender<RubyCommand>,
-  synthetic_receiver: Arc<Mutex<Receiver<SyntheticEvent>>>,
-  state_handler: Arc<dyn Fn(StateQuery) -> StateResponse + Send + Sync>,
-}
-
-// Global state for Ruby callbacks (needed because Magnus callbacks are global)
-static mut SYNTHETIC_SENDER: Option<Arc<Mutex<Sender<SyntheticEvent>>>> = None;
-static mut STATE_HANDLER: Option<Arc<dyn Fn(StateQuery) -> StateResponse + Send + Sync>> = None;
-static mut EVENT_QUEUE: Option<Arc<Mutex<Vec<PhysicalEvent>>>> = None;
-
-impl RubyService {
-  pub fn new<F>(state_handler: F) -> Result<RubyService, Box<dyn std::error::Error>>
-  where
-    F: Fn(StateQuery) -> StateResponse + Send + Sync + 'static,
-  {
-    let (command_sender, command_receiver) = mpsc::channel::<RubyCommand>();
-    let (synthetic_sender, synthetic_receiver) = mpsc::channel::<SyntheticEvent>();
-
-    let synthetic_receiver = Arc::new(Mutex::new(synthetic_receiver));
-    let synthetic_sender = Arc::new(Mutex::new(synthetic_sender));
-    let state_handler = Arc::new(state_handler);
-
-    // Set up global state for Ruby callbacks
-    unsafe {
-      SYNTHETIC_SENDER = Some(synthetic_sender.clone());
-      STATE_HANDLER = Some(state_handler.clone());
-      EVENT_QUEUE = Some(Arc::new(Mutex::new(Vec::new())));
+struct PhysicalEventReceiverInstance { receiver: Mutex<Option<Receiver<PhysicalEvent>>> }
+impl PhysicalEventReceiverInstance {
+  const fn new() -> Self { PhysicalEventReceiverInstance { receiver: Mutex::new(None) } }
+  fn set(&self, r: Receiver<PhysicalEvent>) { *self.receiver.lock().unwrap() = Some(r); }
+  fn get(&self) -> Receiver<PhysicalEvent> {
+    let locked = self.receiver.lock();
+    match locked {
+      Ok(x) => {
+        match x.clone() {
+          Some(r) => r,
+          None => panic!("PhysicalEvent Receiver not set"),
+        }
+      },
+      Err(error) => panic!("Failed to lock PhysicalEventReceiverInstance: {}", error.to_string())
     }
+  }
+}
+lazy_static::lazy_static! {
+  static ref PHYSICAL_EVENT_RECEIVER: PhysicalEventReceiverInstance = PhysicalEventReceiverInstance::new();
+}
+lazy_static::lazy_static! {
+  static ref PHYSICAL_EVENT_SENDER: Sender<PhysicalEvent> = {
+    let (s, r) = unbounded();
+    PHYSICAL_EVENT_RECEIVER.set(r);
+    s
+  };
+}
 
-    thread::spawn(move || {
-      Self::ruby_thread_main(command_receiver);
-    });
+struct CommandReceiverInstance { receiver: Mutex<Option<Receiver<RubyCommand>>> }
+impl CommandReceiverInstance {
+  const fn new() -> Self { CommandReceiverInstance { receiver: Mutex::new(None) } }
+  fn set(&self, r: Receiver<RubyCommand>) { *self.receiver.lock().unwrap() = Some(r); }
+  fn get(&self) -> Receiver<RubyCommand> { self.receiver.lock().unwrap().clone().expect("Command Receiver not set") }
+}
+lazy_static::lazy_static! {
+  static ref COMMAND_RECEIVER: CommandReceiverInstance = CommandReceiverInstance::new();
+}
+lazy_static::lazy_static! {
+  static ref COMMAND_SENDER: Sender<RubyCommand> = {
+    let (s, r) = unbounded();
+    COMMAND_RECEIVER.set(r);
+    s
+  };
+}
 
-    Ok(RubyService {
-      command_sender,
-      synthetic_receiver,
-      state_handler,
-    })
+struct SyntheticEventReceiverInstance { receiver: Mutex<Option<Receiver<SyntheticEvent>>> }
+impl SyntheticEventReceiverInstance {
+  const fn new() -> Self { SyntheticEventReceiverInstance { receiver: Mutex::new(None) } }
+  fn set(&self, r: Receiver<SyntheticEvent>) { println!("SETTING SYNTHETIC EVENT RECEIVER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");*self.receiver.lock().unwrap() = Some(r); }
+  fn get(&self) -> Receiver<SyntheticEvent> { self.receiver.lock().unwrap().clone().expect("SyntheticEvent Receiver not set") }
+}
+lazy_static::lazy_static! {
+  static ref SYNTHETIC_EVENT_RECEIVER: SyntheticEventReceiverInstance = SyntheticEventReceiverInstance::new();
+}
+lazy_static::lazy_static! {
+  static ref SYNTHETIC_EVENT_SENDER: Sender<SyntheticEvent> = {
+    let (s, r) = unbounded();
+    SYNTHETIC_EVENT_RECEIVER.set(r);
+    s
+  };
+}
+
+pub struct RubyService {}
+impl RubyService {
+  pub fn new() -> Result<RubyService, Box<dyn std::error::Error>> {
+    println!("Initializing lazy_static channels and starting Ruby thread...");
+    println!("Setting up {}", SYNTHETIC_EVENT_SENDER.len());
+    println!("Setting up {}", PHYSICAL_EVENT_SENDER.len());
+    println!("Setting up {}", COMMAND_SENDER.len());
+
+    thread::spawn(move || { Self::ruby_thread_main(COMMAND_RECEIVER.get()); });
+    Ok(RubyService {})
   }
 
   fn ruby_thread_main(command_receiver: Receiver<RubyCommand>) {
@@ -100,18 +130,16 @@ impl RubyService {
           }
         }
         RubyCommand::StartEventLoop => {
-          if let Err(e) = ruby.eval::<Value>("$makita_runtime.start_event_loop") {
-            eprintln!("[RubyRuntime] Failed to start event loop: {}", e);
-          }
+          let _ = ruby.eval::<Value>("$makita_runtime.start_event_loop");
         }
       }
     }
   }
 
   fn setup_ruby_environment(ruby: &Ruby) -> Result<(), MagnusError> {
-    define_global_function("makita_send_synthetic_event", function!(ruby_send_synthetic_event, 3));
-    define_global_function("makita_query_state", function!(ruby_query_state, 2));
+    define_global_function("makita_get_signal_pipe_read_fd", function!(ruby_get_signal_pipe_read_fd, 0));
     define_global_function("makita_log", function!(ruby_log_message, 2));
+    define_global_function("makita_send_synthetic_event", function!(ruby_send_synthetic_event, 3));
     define_global_function("makita_get_events", function!(ruby_get_events, 0));
 
     let _: Value = ruby.eval(include_str!("../ruby/fiber_scheduler/compatibility.rb"))?;
@@ -138,80 +166,33 @@ impl RubyService {
     Ok(())
   }
 
-  pub fn start_event_loop(&self) -> Result<(), Box<dyn std::error::Error>> {
+  pub fn start_event_loop(&self) {
     println!("[RubyRuntime] Starting event loop...");
-    self.command_sender.send(RubyCommand::StartEventLoop)?;
-    Ok(())
+    COMMAND_SENDER.send(RubyCommand::StartEventLoop).expect("failed to start event loop");
   }
 
-  pub fn load_script(&self, name: String, path: String) -> Result<(), Box<dyn std::error::Error>> {
+  pub fn load_script(&self, name: String, path: String) {
     println!("[RubyRuntime] Loading script: {} from {}", name, path);
-    self.command_sender.send(RubyCommand::LoadScript { name, path })?;
-    Ok(())
+    COMMAND_SENDER.send(RubyCommand::LoadScript { name, path }).expect("failed to load script");
   }
 
-  pub fn send_event(&self, event: PhysicalEvent) -> Result<(), Box<dyn std::error::Error>> {
-    unsafe {
-      if let Some(queue) = &EVENT_QUEUE {
-        if let Ok(mut queue) = queue.lock() {
-          queue.push(event);
-        }
-      }
-    }
-    Ok(())
+  pub fn send_event(&self, event: PhysicalEvent) {
+    PHYSICAL_EVENT_SENDER.send(event).unwrap();
+    self.signal_that_events_are_available();
   }
 
-  pub fn receive_synthetic_events(&self) -> Vec<SyntheticEvent> {
-    let mut events = Vec::new();
-    if let Ok(receiver) = self.synthetic_receiver.lock() {
-      while let Ok(event) = receiver.try_recv() {
-        events.push(event);
-      }
-    }
-    events
+  pub fn get_synthetic_event_receiver(&self) -> Receiver<SyntheticEvent> {
+    SYNTHETIC_EVENT_RECEIVER.get()
+  }
+
+  fn signal_that_events_are_available(&self) {
+    let producer_pipe_write_fd = PIPE_FDS.lock().unwrap().1.try_clone().expect("Failed to clone PIPE_FDS");
+    unistd::write(producer_pipe_write_fd, &[1u8]).expect("Failed to write to producer pipe");
   }
 }
 
-// Ruby callback functions
-fn ruby_send_synthetic_event(event_type: u16, code: u16, value: i32) -> Result<(), MagnusError> {
-  unsafe {
-    if let Some(sender) = &SYNTHETIC_SENDER {
-      if let Ok(sender) = sender.lock() {
-        let event = SyntheticEvent {
-          event_type,
-          code,
-          value,
-        };
-        let _ = sender.send(event);
-      }
-    }
-  }
-  Ok(())
-}
-
-fn ruby_query_state(query_type: RString, key_code: Option<u16>) -> Result<RString, MagnusError> {
-  unsafe {
-    if let Some(handler) = &STATE_HANDLER {
-      let query_str = query_type.to_string()?;
-      let query = match query_str.as_str() {
-        "KeyState" => {
-          if let Some(code) = key_code {
-            StateQuery::KeyState(code)
-          } else {
-            return Ok(RString::new("false"));
-          }
-        },
-        _ => return Ok(RString::new("false")),
-      };
-
-      let response = handler(query);
-      let result = match response {
-        StateResponse::KeyState(pressed) => pressed.to_string(),
-      };
-      return Ok(RString::new(&result));
-    }
-  }
-  Ok(RString::new("false"))
+fn ruby_get_signal_pipe_read_fd() -> Result<i32, MagnusError> {
+  Ok(PIPE_FDS.lock().unwrap().0.as_raw_fd())
 }
 
 fn ruby_log_message(level: RString, message: RString) -> Result<(), MagnusError> {
@@ -229,82 +210,22 @@ fn ruby_log_message(level: RString, message: RString) -> Result<(), MagnusError>
   Ok(())
 }
 
-fn ruby_get_events() -> Result<RArray, MagnusError> {
-  unsafe {
-    if let Some(queue) = &EVENT_QUEUE {
-      if let Ok(mut queue) = queue.lock() {
-        let events: Vec<PhysicalEvent> = queue.drain(..).collect();
-
-        let ruby_array = RArray::new();
-        for event in events {
-          let hash = RHash::new();
-          hash.aset("script", event.script)?;
-          hash.aset("event_type", event.event_type)?;
-          hash.aset("code", event.code)?;
-          hash.aset("value", event.value)?;
-          hash.aset("timestamp_sec", event.timestamp_sec)?;
-          hash.aset("timestamp_nsec", event.timestamp_nsec)?;
-          ruby_array.push(hash)?;
-        }
-
-        return Ok(ruby_array);
-      }
-    }
-  }
-
-  // Return empty array if queue is not available or locked
-  Ok(RArray::new())
+fn ruby_send_synthetic_event(event_type: u16, code: u16, value: i32) {
+  println!("[Ruby] Sending synthetic event: type={}, code={}, value={}", event_type, code, value);
+  SYNTHETIC_EVENT_SENDER.send(SyntheticEvent { event_type, code, value }).unwrap();
 }
 
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use std::time::Duration;
-
-  #[test]
-  fn test_magnus_ruby_service_creation() {
-    let service = RubyService::new(|query| match query {
-      StateQuery::KeyState(_) => StateResponse::KeyState(false),
-    });
-
-    assert!(service.is_ok());
+fn ruby_get_events() -> Result<RArray, MagnusError> {
+  let ruby_array = RArray::new();
+  for event in PHYSICAL_EVENT_RECEIVER.get().try_iter() {
+    let hash = RHash::new();
+    hash.aset("script", event.script)?;
+    hash.aset("event_type", event.event_type)?;
+    hash.aset("code", event.code)?;
+    hash.aset("value", event.value)?;
+    hash.aset("timestamp_sec", event.timestamp_sec)?;
+    hash.aset("timestamp_nsec", event.timestamp_nsec)?;
+    ruby_array.push(hash)?;
   }
-
-  #[test]
-  fn test_command_sending() {
-    let service = RubyService::new(|query| match query {
-      StateQuery::KeyState(_) => StateResponse::KeyState(false),
-    }).expect("Failed to create service");
-
-    // Test script loading
-    let result = service.load_script("test".to_string(), "/tmp/test.rb".to_string());
-    assert!(result.is_ok());
-
-    // Test event sending
-    let event = PhysicalEvent {
-      script: "test".to_string(),
-      event_type: 1,
-      code: 30,
-      value: 1,
-      timestamp_sec: 0,
-      timestamp_nsec: 0,
-    };
-    let result = service.send_event(event);
-    assert!(result.is_ok());
-
-    // Test event loop start
-    let result = service.start_event_loop();
-    assert!(result.is_ok());
-  }
-
-  #[test]
-  fn test_synthetic_event_reception() {
-    let service = RubyService::new(|query| match query {
-      StateQuery::KeyState(_) => StateResponse::KeyState(false),
-    }).expect("Failed to create service");
-
-    // Initially should have no events
-    let events = service.receive_synthetic_events();
-    assert!(events.is_empty());
-  }
+  Ok(ruby_array)
 }

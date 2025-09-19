@@ -16,10 +16,6 @@ module Makita
   # EVENT_TYPE_FORCEFEEDBACKSTATUS = defined back in Rust
 
   class << self
-    def runtime
-      @runtime ||= Thread.current[:makita_runtime]
-    end
-
     def press(key_code)
       send_synthetic_event(EVENT_TYPE_KEY, key_code, KEY_VALUE_DOWN)
       yield if block_given?
@@ -39,10 +35,6 @@ module Makita
 
     def pass(event)
       send_synthetic_event(event.event_type, event.code, event.value)
-    end
-
-    def get_key_state(key_code)
-      makita_query_state("KeyState", key_code) == "true"
     end
 
     def type_text(string, delay_seconds: 0)

@@ -1,62 +1,36 @@
-use crate::ruby_runtime::{RubyService, SyntheticEvent};
+use crate::ruby_runtime::SyntheticEvent;
 use crate::virtual_devices::VirtualDevices;
 use evdev::{EventType, InputEvent};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::time::{sleep, Duration};
+use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time::Duration;
+use crossbeam_channel::Receiver;
 
 pub struct EventSender {
-  ruby_service: Arc<Mutex<RubyService>>,
+  synthetic_event_receiver: Receiver<SyntheticEvent>,
   virtual_devices: Arc<Mutex<VirtualDevices>>,
-  running: Arc<Mutex<bool>>,
 }
 
 impl EventSender {
-  pub fn new(ruby_service: Arc<Mutex<RubyService>>, virtual_devices: Arc<Mutex<VirtualDevices>>) -> Self {
-    Self {
-      ruby_service,
-      virtual_devices,
-      running: Arc::new(Mutex::new(false)),
-    }
+  pub fn new(synthetic_event_receiver: Receiver<SyntheticEvent>, virtual_devices: Arc<Mutex<VirtualDevices>>) -> Self {
+    Self { synthetic_event_receiver, virtual_devices }
   }
 
-  pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
-    {
-      let mut running = self.running.lock().await;
-      *running = true;
-    }
+  pub fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+    loop {
+      println!("[EventSender] Waiting for synthetic events");
+      let event = self.synthetic_event_receiver.recv().unwrap();
+      let input_event = InputEvent::new(EventType(event.event_type), event.code, event.value);
 
-    println!("[EventSender] Starting event sender loop");
+      let mut virtual_devices = self.virtual_devices.lock().unwrap();
 
-    while *self.running.lock().await {
-      let ruby_events = {
-        let ruby_service = self.ruby_service.lock().await;
-        ruby_service.receive_synthetic_events()
-      };
-
-      if !ruby_events.is_empty() {
-        println!("[EventSender] Received {} synthetic events", ruby_events.len());
-
-        let mut virtual_devices = self.virtual_devices.lock().await;
-        for event in ruby_events {
-          let input_event = InputEvent::new(EventType(event.event_type), event.code, event.value);
-
-          match EventType(event.event_type) {
-            EventType::KEY | EventType::SWITCH => virtual_devices.keys.emit(&[input_event])?,
-            EventType::RELATIVE => virtual_devices.axis.emit(&[input_event])?,
-            _ => virtual_devices.keys.emit(&[input_event])?,
-          }
-
-          // Slight delay to prevent missed events.
-          // Not sure why this works.
-          sleep(Duration::from_nanos(1)).await;
-        }
+      match EventType(event.event_type) {
+        EventType::KEY | EventType::SWITCH => virtual_devices.keys.emit(&[input_event]).unwrap(),
+        EventType::RELATIVE => virtual_devices.axis.emit(&[input_event]).unwrap(),
+        _ => virtual_devices.keys.emit(&[input_event]).unwrap(),
       }
 
-      sleep(Duration::from_millis(1)).await;
+      sleep(Duration::from_micros(10));
     }
-
-    println!("[EventSender] Event sender loop stopped");
-    Ok(())
   }
 }
